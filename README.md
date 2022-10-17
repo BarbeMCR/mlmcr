@@ -29,21 +29,16 @@ Good luck. You are gonna need it. When something like a syntax error is found, t
 Lines that start with ; will be treated as comments. In-line comments aren't allowed.
 
 - How do I run mlmcr?
-If you have a *COMPILED* version of mlmcr:
-Launch a terminal session (if you want).
-Navigate into the directiory where mlmcr.exe is (or open it directly in a file browser).
-To launch the mlmcr interpreter, write (without quotes):
-`mlmcr.exe`
-To execute a `.mlmcr` file, write:
-`mlmcr.exe <file_path>`
-
-If you have a *SOURCE* version of mlmcr:
-Launch a terminal session.
-Navigate into the directory where the mlmcr.py script is.
-To launch the mlmcr interpreter, write (without quotes):
-`python mlmcr.py`
-To execute a `.mlmcr` file, write:
-`python mlmcr.py <file_path>.mlmcr`
+  - __If you have a *COMPILED* version of mlmcr:__
+  - Launch a terminal session (if you want).
+  - Navigate into the directiory where `mlmcr.exe` is (or open it directly in a file browser).
+  - To launch the mlmcr interpreter, write (without quotes): `mlmcr.exe`
+  - To execute a `.mlmcr` file, write: `mlmcr.exe <file_path>`
+  - __If you have a *SOURCE* version of mlmcr:__
+  - Launch a terminal session.
+  - Navigate into the directory where the `mlmcr.py` script is.
+  - To launch the mlmcr interpreter, write (without quotes): `python mlmcr.py`
+  - To execute a `.mlmcr` file, write: `python mlmcr.py <file_path>.mlmcr`
 
 *__SHORT INSTRUCTION GUIDE__*
 
