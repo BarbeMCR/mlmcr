@@ -13,32 +13,42 @@ The output will be:
 Hello world!
 ```
 Here, the `PUT` instruction stores the string `Hello world!` (we put a `&` sign before a string to signal the interpreter that we are in fact writing a string, and not anything else, such as an integer) in the variable `$0` (yes, variables can only be hexadecimal characters and are preceeded by a `$` sign).
+
 Afterwards, the `PUSH` instructions prints the contents of the variable `$0` to screen, and we get our `Hello world!` string back.
+
 If you need a more complex example, try opening the `math_demo.mlmcr` file. However, this demo doesn't include all features of mlmcr.
-The `mlmcr1_manual.txt` file contains reference for all instructions in mlmcr. Try out a few instructions in the interpreter until you get the desired output! Then you can start writing scripts in any text editor. Just make sure to save your scripts with the `.mlmcr` extension or the interpreter will not recognize them. Happy programming!
+The `mlmcr1_manual.txt` file contains reference for all instructions in mlmcr.
+
+Try out a few instructions in the interpreter until you get the desired output!
+Then you can start writing scripts in your favourite text editor. Just make sure to save your scripts with the `.mlmcr` extension or the interpreter will not recognize them. Happy programming!
 
 ### Manual
 
-- What is mlmcr?
+**What is mlmcr?**
+
 Well, it's easy enough: mlmcr is a Python-derived programming language that feels like you are writing machine code into an old-style code monitor that does not like variable names and wants you to write all the variables as memory addresses (e.g. $0DC7). If you wonder, yes, it's as useless as hell (and as evil too).
 
-- What if I make some mistake in the code?
+**What if I make some mistake in the code?**
+
 Good luck. You are gonna need it. When something like a syntax error is found, the file that is being parsed will display an error message. Based on when the error appeared, you may be hinted towards a specific section of the file. Other than that, there isn't much else aiding you. But, if you are programming on the interpreter, the culprit line will be immediately identifiable, as the code throws an error after entering the instruction.
 
-- How do I comment the code?
+**How do I comment the code?**
+
 Lines that start with ; will be treated as comments. In-line comments aren't allowed.
 
-- How do I run mlmcr?
-  - __If you have a *COMPILED* version of mlmcr:__
-  - Launch a terminal session (if you want).
-  - Navigate into the directiory where `mlmcr.exe` is (or open it directly in a file browser).
-  - To launch the mlmcr interpreter, write (without quotes): `mlmcr.exe`
-  - To execute a `.mlmcr` file, write: `mlmcr.exe <file_path>`
-  - __If you have a *SOURCE* version of mlmcr:__
-  - Launch a terminal session.
-  - Navigate into the directory where the `mlmcr.py` script is.
-  - To launch the mlmcr interpreter, write (without quotes): `python mlmcr.py`
-  - To execute a `.mlmcr` file, write: `python mlmcr.py <file_path>.mlmcr`
+**How do I run mlmcr?**
+
+__If you have a *COMPILED* version of mlmcr:__
+- Launch a terminal session (if you want).
+- Navigate into the directiory where `mlmcr.exe` is (or open it directly in a file browser).
+- To launch the mlmcr interpreter, write (without quotes): `mlmcr.exe`
+- To execute a `.mlmcr` file, write: `mlmcr.exe <file_path>`
+
+__If you have a *SOURCE* version of mlmcr:__
+- Launch a terminal session.
+- Navigate into the directory where the `mlmcr.py` script is.
+- To launch the mlmcr interpreter, write (without quotes): `python mlmcr.py`
+- To execute a `.mlmcr` file, write: `python mlmcr.py <file_path>.mlmcr`
 
 *__SHORT INSTRUCTION GUIDE__*
 
