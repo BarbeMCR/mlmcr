@@ -1,6 +1,22 @@
 # mlmcr
 The unnecessary Assembly-like programming language, made with love (or hate, decide by yourself) by BarbeMCR.
 
+### Hello world example
+Before jumping into the manual, let's try analyzing the Hello World program written in mlmcr.
+The program is as follows:
+```
+PUT &Hello world!, $0
+PUSH $0
+```
+The output will be:
+```
+Hello world!
+```
+Here, the `PUT` instruction stores the string `Hello world!` (we put a `&` sign before a string to signal the interpreter that we are in fact writing a string, and not anything else, such as an integer) in the variable `$0` (yes, variables can only be hexadecimal characters and are preceeded by a `$` sign).
+Afterwards, the `PUSH` instructions prints the contents of the variable `$0` to screen, and we get our `Hello world!` string back.
+If you need a more complex example, try opening the `math_demo.mlmcr` file. However, this demo doesn't include all features of mlmcr.
+The `mlmcr1_manual.txt` file contains reference for all instructions in mlmcr. Try out a few instructions in the interpreter until you get the desired output! Then you can start writing scripts in any text editor. Just make sure to save your scripts with the `.mlmcr` extension or the interpreter will not recognize them. Happy programming!
+
 ### Manual
 
 - What is mlmcr?
@@ -26,7 +42,7 @@ Launch a terminal session.
 Navigate into the directory where the mlmcr.py script is.
 To launch the mlmcr interpreter, write (without quotes):
 `python mlmcr.py`
-To execute a '.mlmcr' file, write:
+To execute a `.mlmcr` file, write:
 `python mlmcr.py <file_path>.mlmcr`
 
 *__SHORT INSTRUCTION GUIDE__*
