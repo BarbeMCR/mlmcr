@@ -16,11 +16,11 @@ Here, the `PUT` instruction stores the string `Hello world!` (we put a `&` sign 
 
 Afterwards, the `PUSH` instructions prints the contents of the variable `$0` to screen, and we get our `Hello world!` string back.
 
-If you need a more complex example, try opening the `math_demo.mlmcr` file. However, this demo doesn't include all features of mlmcr.
-The `mlmcr1_manual.txt` file contains reference for all instructions in mlmcr.
+If you need a more complex example, try opening the `map_demo.mlmcr` file. However, this demo doesn't include all features of mlmcr.
+The `mlmcr2_manual.txt` file contains reference for all instructions in mlmcr.
 
 Try out a few instructions in the interpreter until you get the desired output!
-Then you can start writing scripts in your favourite text editor. Just make sure to save your scripts with the `.mlmcr` extension or the interpreter will not recognize them. Happy programming!
+Then you can start writing scripts in your favorite text editor. Just make sure to save your scripts with the `.mlmcr` extension or the interpreter will not recognize them. Happy programming!
 
 ### Manual
 
@@ -30,7 +30,7 @@ Well, it's easy enough: mlmcr is a Python-derived programming language that feel
 
 **What if I make some mistake in the code?**
 
-Good luck. You are gonna need it. When something like a syntax error is found, the file that is being parsed will display an error message. Based on when the error appeared, you may be hinted towards a specific section of the file. Other than that, there isn't much else aiding you. But, if you are programming on the interpreter, the culprit line will be immediately identifiable, as the code throws an error after entering the instruction.
+Good luck. You are gonna need it. While it is shown what the culprit instruction is, you will not generally receive any hint regarding the nature of the error. Moreover, if you make a mistake in a subroutine or function, the error will appear only when you call it. This might lead you to believe the mistake lies in the JUMP/CALL instruction shown by the interpreter. Always double-check the subroutine(s) or function(s) referenced by JUMP/CALL instructions.
 
 **How do I comment the code?**
 
@@ -50,18 +50,21 @@ __If you have a *SOURCE* version of mlmcr:__
 - To launch the mlmcr interpreter, write (without quotes): `python mlmcr.py`
 - To execute a `.mlmcr` file, write: `python mlmcr.py <file_path>.mlmcr`
 
+*__Make sure to read variable naming conventions in the manual!__*
+
 *__SHORT INSTRUCTION GUIDE__*
 
-Currently, mlmcr has 42 instructions to work with.
+Currently, mlmcr has 89 instructions to work with.
 
-Note: operations with floating-point numbers will always store results as floating-point numbers, regardless of the amount of integer arguments.
-Note: boolean values are generally omitted from this manual as rarely used, but can be used in a variety of instructions.
-
-**VARIABLES**
+*__VARIABLES__*
 
 **PUT** - assign a value to a variable
 
 **DEL** - delete a variable
+
+**NEW** - create a new instance of a variable's type
+
+**SWAP** - swap two variables
 
 **KILL** - put a variable in the kill list
 
@@ -85,11 +88,17 @@ Note: boolean values are generally omitted from this manual as rarely used, but 
 
 **POW** - calculate the power of variables and/or numbers and store the result in a variable
 
+**ABS** - calculate the absolute value of a variable or number
+
+**SQRT** - calculate the square root of a variable or number
+
+**CBRT** - calculate the cube root of a variable or number
+
 **INC** - increment a variable
 
 **DEC** - decrement a variable
 
-**PUSH** - print variables to screen
+**PUSH** - print things to screen
 
 **PULL** - get a variable from user input
 
@@ -101,19 +110,29 @@ Note: boolean values are generally omitted from this manual as rarely used, but 
 
 **BOOL** - convert a variable to a boolean
 
+**NULL** - put NULL/None in a variable
+
+**TYPE** - check the type of a value
+
 **LINK** - join two strings together
 
 **FSTR** - split a string into a sequence
 
 **TSTR** - join a sequence into a string
 
-**ARRAYS**
+**MIN** - get the minimum value
+
+**MAX** - get the maximum value
+
+*__ARRAYS__*
 
 **SEQ** - build a sequence
 
 **PSEQ** - build a permanent sequence
 
 **PACK** - pack variables
+
+**MAP** - build a map
 
 **JOIN** - add items to an array
 
@@ -127,17 +146,92 @@ Note: boolean values are generally omitted from this manual as rarely used, but 
 
 **GET** - get a value in an array based on its index
 
+**REST** - get part of an array
+
 **SET** - insert a value in array before a given index
 
 **REPL** - replace a value in an array based on its index
 
-**LEN** - get the lenght of an array
+**MSET** - set an item in a map
 
-**IN** - check if a value is in an array
+**MGET** - get a value from a key in a map
+
+**MPOP** - remove an item from a map based on its key
+
+**MPLI** - remove and store the last item from a map
+
+**GRAB** - get all key-value pairs from a map
+
+**KEYS** - get all keys from a map
+
+**VALS** - get all values from a map
+
+**LEN** - get the lenght of an array
 
 **WIPE** - clear an array of its items
 
-**OTHER INSTRUCTIONS**
+**COPY** - create a shallow copy of an array
+
+*__OPERATORS__*
+
+**EQ** - check if two values are equal
+
+**NE** - check if two values are not equal
+
+**GT** - check if a value is greater than another
+
+**LT** - check if a value is less than another
+
+**GE** - check if a value is greater than or equal to another
+
+**LE** - check if a value is less than or equal to another
+
+**AND** - check if two values are both true
+
+**OR** - check if at least a value is true
+
+**NOT** - reverse a value
+
+**IS** - check if two values are the same
+
+**IN** - check if a value is in an array
+
+*__CONTROL FLOW__*
+
+**IF** - the if equivalent in mlmcr
+
+**ELIF** - the else if equivalent in mlmcr
+
+**ELSE** - the else equivalent in mlmcr
+
+**FOR** - the for equivalent in mlmcr
+
+**FORI** - the indexed for equivalent in mlmcr
+
+**ALA** - the while equivalent in mlmcr
+
+**DALA** - the do-while equivalent in mlmcr
+
+**LOOP** - create a sequence of integers respecting a specificed set of rules
+
+*__SUBROUTINES & FUNCTIONS__*
+
+**SUBR** - create a subroutine
+- **RTS** - end a subroutine
+
+**JUMP** - call a subroutine
+
+**FUNC** - create a function
+- **TAKE** - copy a global variable into a local variable in a function
+- **SYNC** - copy a local variable into a global variable in a function
+- **GIVE** - return a value from a function
+- **END** - end a function
+
+**CALL** - call a function
+
+*__OTHER INSTRUCTIONS__*
+
+**RAND** - get a random integer
 
 **HALT** - delay code execution
 
