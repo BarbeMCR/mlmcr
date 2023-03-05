@@ -1,0 +1,118 @@
+push &Welcome to the mlmcr map demo!
+; Some $200x and $300x subrs/funcs are not actually needed and could be integrated in $1000
+; They are here to demonstrate how code can be sectioned in mlmcr
+; $2000 -> print_options
+subr $2000
+  ; This prints an empty line
+  push
+  push &1. Add or modify a key
+  push &2. Get a key
+  push &3. Delete a key
+  push &4. Show all keys
+  push &5. Clear all keys
+  push &0. Exit
+rts
+; $2001 -> convert_to_int
+func $2001, @0
+  int @0
+  give @0
+end
+; $2002 -> check_selected_option
+subr $2002
+  call $2001, $a, $a
+  eq $a, #1, $a1
+  eq $a, #2, $a2
+  eq $a, #3, $a3
+  eq $a, #4, $a4
+  eq $a, #5, $a5
+  eq $a, #0, $b0
+rts
+; $ffff -> _print_fallback
+subr $ffff
+  push &BarbeMCR messed up again!
+rts
+; $2003 -> run_option
+subr $2003
+  if $a1, $1001, $0, $ff
+  elif $a2, $1002, $0, $ff
+  elif $a3, $1003, $0, $ff
+  elif $a4, $1004, $0, $ff
+  elif $a5, $1005, $0, $ff
+  elif $b0, $1010
+  else $ffff
+rts
+; $3000 -> get_input
+subr $3000
+  pack $f0, &1, &2, &3, &4, &5, &0
+  pull $a, &Type in a choice: 
+  in $a, $f0, $c0
+  ; Invert $c0 in place
+  not $c0, $c0
+rts
+; $1022 -> _get_value
+func $1022, @0, @a
+  mget @0, @a, @1
+  push &The value for , @a, & is , @1
+end
+; $1032 -> print_no_key
+subr $1032
+  push &No matching key found!
+rts
+; $1023 -> _pop_key
+func $1023, @0, @a
+  mpop @0, @a
+end
+; $1024 -> _print_item
+func $1024, @f
+  get @f, #0, @f0
+  get @f, #1, @f1
+  push &Key:, @f0, &; Value:, @f1
+end
+put !1, $a0
+map $0
+; $1001 -> add_key
+func $1001, @0
+  pull @a, &Insert the key: 
+  pull @b, &Insert the value: 
+  mset @0, @a, @b
+end
+; $1002 -> get_key
+func $1002, @0
+  take $1022, @1022
+  take $1032, @1032
+  pull @a, &Insert the key: 
+  in @a, @0, @1
+  if @1, @1022, @0, @a, @ff
+  else @1032
+end
+; $1003 -> pop_key
+func $1003, @0
+  take $1023, @1023
+  take $1032, @1032
+  pull @a, &Insert the key: 
+  in @a, @0, @1
+  if @1, @1023, @0, @a, @ff
+  else @1032
+end
+; $1004 -> print_keys
+func $1004, @0
+  take $1024, @1024
+  grab @0, @1
+  for @f, @1, @1024, @f, @ff
+end
+; $1005 -> clear_keys
+func $1005, @0
+  wipe @0
+end
+; $1010 -> _exit
+subr $1010
+  exit
+rts
+; $1000 -> main
+subr $1000
+  jump $2000
+  dala $c0, $3000
+  jump $2002
+  jump $2003
+rts
+ala $a0, $1000
