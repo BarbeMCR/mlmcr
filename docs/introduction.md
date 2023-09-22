@@ -15,7 +15,11 @@ What about a slightly more complex example?
 ```
 push #1, & + , #2, & = , #3
 ```
+This will print "1 + 2 = 3".
+
 Here `push` is the same as before, but we have more than one argument this time. In fact, we have 5: `#1`, `& + `, `#2`, `& = ` and `#3`.
 We use commas to separate the arguments.
 
 You need to be very careful when passing arguments, since their amount, their order and their prefixes all count.
+
+If you want to save any program for later usage, you can put the instructions in a text editor and tell it to save the file with a `.mlmcr` extension.
