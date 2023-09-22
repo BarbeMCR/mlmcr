@@ -1,242 +1,75 @@
 # mlmcr
-The unnecessary Assembly-like programming language, made with love (or hate, decide by yourself) by BarbeMCR.
+mlmcr is a dynamically typed, multi-paradigm, general-purpose, interpreted semi-esoteric programming language written in Python.
+Its code is made to look similar, at least to some extent, to Assembly code.
 
-### Hello world example
-Before jumping into the manual, let's try analyzing the Hello World program written in mlmcr.
-The program is as follows:
+mlmcr makes wide use of prefixes to identify types, and limits variable names to hexadecimal-only names.
+
+I don't recommend mlmcr for actual production code, due to the high likelyhood of encountering bugs (I am a solo developer, and it would help me a lot if you took the time to open a bug report in case you find any).
+
+## Sample code
+
+This code asks the user to input an arbitrary number of floats, then increases each by 1 and prints the resulting list:
+
 ```
-PUT &Hello world!, $0
-PUSH $0
+seq ->$0
+pull ->$10, &How many values to insert? 
+int $10, ->$10
+loop $10, ->$a0
+subr ->$1000
+    pull ->$a, &Insert value: 
+    flpt $a, ->$a
+    join <->$0, $a
+rts
+for ->$ff, $a0, $1000
+func ->$1001, >@1, >@a
+    do ->@10010, >@a, :inc ->@a
+    snag <->@10010, >@a
+    call @10010, @a, ->@a
+    put $0, ->@0
+    repl <->@0, @1, @a
+end
+fori ->$f1, ->$f0, $0, $1001, ^$f1, ^$f0, ->$ff
+push $0
 ```
-The output will be:
-```
-Hello world!
-```
-Here, the `PUT` instruction stores the string `Hello world!` (we put a `&` sign before a string to signal the interpreter that we are in fact writing a string, and not anything else, such as an integer) in the variable `$0` (yes, variables can only be hexadecimal characters and are preceeded by a `$` sign).
 
-Afterwards, the `PUSH` instructions prints the contents of the variable `$0` to screen, and we get our `Hello world!` string back.
+## Features
 
-If you need a more complex example, try opening the `map_demo.mlmcr` file. However, this demo doesn't include all features of mlmcr.
-The `mlmcr2_manual.txt` file contains reference for all instructions in mlmcr.
+- Variables names must be hexadecimal, and are preceded by a prefix: usually *$* for globals and *@* for locals
+- Most types are defined using specific prefixes
+- Instructions are executed one at a time, without the possibility of nesting them together, and are composed of an opcode and a number of arguments
+- Supports many standard Python types (int, float, str, bool, NoneType, list, tuple, dict, range)
+- Allows variables to be "killed" (i.e. put in a special list, the kill list) and woken up again to limit namespace pollution
+- Has an extra array type: the pseudosequence (which is a sort of read-only list)
+- Supports if-elif-else statements, for, indexed for, while and do-while loops
+- Supports error handling and throwing custom errors
+- Has functions, subroutines and lambdas
+- Supports registers, which act as "superglobal" variables (indicated to use as constants)
+- Supports multiple namespaces, each with their own opcodes and variables
+- Allows binding callables to opcodes
+- Supports external libraries
+- Can be extended using the mlmcr API in Python
+- Has a Visual Studio Code extension for syntax highlighting (requires VS Code >=1.43.0)
 
-Try out a few instructions in the interpreter until you get the desired output!
-Then you can start writing scripts in your favorite text editor. Just make sure to save your scripts with the `.mlmcr` extension or the interpreter will not recognize them. Happy programming!
+## Language reference and documentation
 
-### Manual
+You can find the documentation contents [here](docs/contents.md).
 
-**What is mlmcr?**
+## Requirements
 
-Well, it's easy enough: mlmcr is a Python-derived programming language that feels like you are writing machine code into an old-style code monitor that does not like variable names and wants you to write all the variables as memory addresses (e.g. $0DC7). If you wonder, yes, it's as useless as hell (and as evil too).
+- Python (>=3.10)
+- pyinstaller (>=4.7 for python 3.10, >=5.6.2 for python 3.11, >=5.13.2 for python 3.12+; requires additional libraries; only required to freeze the mlmcr interpreter)
 
-**What if I make some mistake in the code?**
+To use a pre-frozen interpreter (does not include the entire Python standard library):
+- Windows 10+ 64-bit
+- a modern GNU/Linux distro (tested on Ubuntu 22.04)
 
-Good luck. You are gonna need it. While it is shown what the culprit instruction is, you will not generally receive any hint regarding the nature of the error. Moreover, if you make a mistake in a subroutine or function, the error will appear only when you call it. This might lead you to believe the mistake lies in the JUMP/CALL instruction shown by the interpreter. Always double-check the subroutine(s) or function(s) referenced by JUMP/CALL instructions.
+To install and use mlmcr from a pre-frozen bundle (not recommended for "production" use), download and extract the relevant release for your platform, then type `mlmcr` (or `mlmcr <file>` to run a script).
 
-**How do I comment the code?**
+To install and use mlmcr from source, download and extract the source code, then type `python mlmcr.py` or `python3 mlmcr.py` (or `python mlmcr.py <file>` or `python3 mlmcr.py <file>` to run a script) in a terminal window.
 
-Lines that start with ; will be treated as comments. In-line comments aren't allowed.
+To freeze mlmcr, download and extract the source code (using only basic libraries), then type: `pyinstaller --console --hiddenimport math --hiddenimport random mlmcr.py`.
+To package extra Python modules (standard or not), type `--hiddenimport <library>` before `mlmcr.py`.
 
-**How do I run mlmcr?**
+## License
 
-__If you have a *COMPILED* version of mlmcr:__
-- Launch a terminal session (if you want).
-- Navigate into the directiory where `mlmcr.exe` is (or open it directly in a file browser).
-- To launch the mlmcr interpreter, write (without quotes): `mlmcr.exe`
-- To execute a `.mlmcr` file, write: `mlmcr.exe <file_path>`
-
-__If you have a *SOURCE* version of mlmcr:__
-- Launch a terminal session.
-- Navigate into the directory where the `mlmcr.py` script is.
-- To launch the mlmcr interpreter, write (without quotes): `python mlmcr.py`
-- To execute a `.mlmcr` file, write: `python mlmcr.py <file_path>.mlmcr`
-
-*__Make sure to read variable naming conventions in the manual!__*
-
-*__SHORT INSTRUCTION GUIDE__*
-
-Currently, mlmcr has 89 instructions to work with.
-
-*__VARIABLES__*
-
-**PUT** - assign a value to a variable
-
-**DEL** - delete a variable
-
-**NEW** - create a new instance of a variable's type
-
-**SWAP** - swap two variables
-
-**KILL** - put a variable in the kill list
-
-**WAKE** - retrieve a variable from the kill list
-
-**KSET** - set the maximum lenght of the kill list
-
-**KGET** - retrieve the highest index of the kill list
-
-**ADD** - sum variables and/or numbers and store the result in a variable
-
-**SUB** - subtract variables and/or numbers and store the result in a variable
-
-**MUL** - multiply variables and/or numbers and store the result in a variable
-
-**DIV** - divide variables and/or numbers and store the result in a variable
-
-**FDIV** - floor divide variables and/or numbers and store the result in a variable
-
-**MOD** - calculate the remainder of variables and/or numbers and store the result in a variable
-
-**POW** - calculate the power of variables and/or numbers and store the result in a variable
-
-**ABS** - calculate the absolute value of a variable or number
-
-**SQRT** - calculate the square root of a variable or number
-
-**CBRT** - calculate the cube root of a variable or number
-
-**INC** - increment a variable
-
-**DEC** - decrement a variable
-
-**PUSH** - print things to screen
-
-**PULL** - get a variable from user input
-
-**INT** - convert a floating-point number or a string to an integer number
-
-**FLPT** - convert an integer number or a string to a floating-point number
-
-**STR** - convert an integer number or a floating-point number to a string
-
-**BOOL** - convert a variable to a boolean
-
-**NULL** - put NULL/None in a variable
-
-**TYPE** - check the type of a value
-
-**LINK** - join two strings together
-
-**FSTR** - split a string into a sequence
-
-**TSTR** - join a sequence into a string
-
-**MIN** - get the minimum value
-
-**MAX** - get the maximum value
-
-*__ARRAYS__*
-
-**SEQ** - build a sequence
-
-**PSEQ** - build a permanent sequence
-
-**PACK** - pack variables
-
-**MAP** - build a map
-
-**JOIN** - add items to an array
-
-**NEST** - add an array to an array
-
-**POP** - remove an item from an array based on its index
-
-**REM** - remove an item from an array based on its value
-
-**GETI** - get the index of a value in an array
-
-**GET** - get a value in an array based on its index
-
-**REST** - get part of an array
-
-**SET** - insert a value in array before a given index
-
-**REPL** - replace a value in an array based on its index
-
-**MSET** - set an item in a map
-
-**MGET** - get a value from a key in a map
-
-**MPOP** - remove an item from a map based on its key
-
-**MPLI** - remove and store the last item from a map
-
-**GRAB** - get all key-value pairs from a map
-
-**KEYS** - get all keys from a map
-
-**VALS** - get all values from a map
-
-**LEN** - get the lenght of an array
-
-**WIPE** - clear an array of its items
-
-**COPY** - create a shallow copy of an array
-
-*__OPERATORS__*
-
-**EQ** - check if two values are equal
-
-**NE** - check if two values are not equal
-
-**GT** - check if a value is greater than another
-
-**LT** - check if a value is less than another
-
-**GE** - check if a value is greater than or equal to another
-
-**LE** - check if a value is less than or equal to another
-
-**AND** - check if two values are both true
-
-**OR** - check if at least a value is true
-
-**NOT** - reverse a value
-
-**IS** - check if two values are the same
-
-**IN** - check if a value is in an array
-
-*__CONTROL FLOW__*
-
-**IF** - the if equivalent in mlmcr
-
-**ELIF** - the else if equivalent in mlmcr
-
-**ELSE** - the else equivalent in mlmcr
-
-**FOR** - the for equivalent in mlmcr
-
-**FORI** - the indexed for equivalent in mlmcr
-
-**ALA** - the while equivalent in mlmcr
-
-**DALA** - the do-while equivalent in mlmcr
-
-**LOOP** - create a sequence of integers respecting a specificed set of rules
-
-*__SUBROUTINES & FUNCTIONS__*
-
-**SUBR** - create a subroutine
-- **RTS** - end a subroutine
-
-**JUMP** - call a subroutine
-
-**FUNC** - create a function
-- **TAKE** - copy a global variable into a local variable in a function
-- **SYNC** - copy a local variable into a global variable in a function
-- **GIVE** - return a value from a function
-- **END** - end a function
-
-**CALL** - call a function
-
-*__OTHER INSTRUCTIONS__*
-
-**RAND** - get a random integer
-
-**HALT** - delay code execution
-
-**EXIT** - quit the current script or interpreter
-
-**PYEVAL** - evaluate a Python expression
-
-**PYEXEC** - execute Python code
+mlmcr is licensed under the MIT license.
