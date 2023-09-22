@@ -2,7 +2,7 @@
 
 ## Table of contents
 
-- [mlmcr Etiquette](etiquette.md) (aka the Style Guide)
+[mlmcr Etiquette](etiquette.md) (aka the Style Guide)
 
 - [Introduction](introduction.md)
 - [Types and prefixes](types.md)
