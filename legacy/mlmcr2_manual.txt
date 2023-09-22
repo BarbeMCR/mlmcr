@@ -1,0 +1,641 @@
+mlmcr Revision 2 Manual
+=======================
+
+- What is mlmcr?
+Well, it's easy enough: mlmcr is a Python-derived programming language that feels like you are writing machine code into an old-style code monitor that does not like variable names and wants you to write all the variables as memory addresses (e.g. $0DC7). If you wonder, yes, it's as useless as hell (and as evil too).
+
+- What if I make some mistake in the code?
+Good luck. You are gonna need it. While it is shown what the culprit instruction is, you will not generally receive any hint regarding the nature of the error. Moreover, if you make a mistake in a subroutine or function, the error will appear only when you call it. This might lead you to believe the mistake lies in the JUMP/CALL instruction shown by the interpreter. Always double-check the subroutine(s) or function(s) referenced by JUMP/CALL instructions.
+
+- How do I comment the code?
+Lines that start with ; will be treated as comments. In-line comments aren't allowed.
+
+- How do I run mlmcr?
+If you have a *COMPILED* version of mlmcr:
+Launch a terminal session (if you want).
+Navigate into the directiory where mlmcr.exe is (or open it directly in a file browser).
+To launch the mlmcr interpreter, write (without quotes):
+'mlmcr.exe'
+To execute a '.mlmcr' file, write:
+'mlmcr.exe <file_path>'
+
+If you have a *SOURCE* version of mlmcr:
+Launch a terminal session.
+Navigate into the directory where the mlmcr.py script is.
+To launch the mlmcr interpreter, write (without quotes):
+'python mlmcr.py'
+To execute a '.mlmcr' file, write:
+'python mlmcr.py <file_path>.mlmcr'
+
+CONVENTIONS
+-----------
+To help others understand your code, a series of conventions should be followed. Below are listed all official conventions.
+
+INDENTATION
+-=-=-=-=-=-
+You can only realistically apply those rules when writing a .mlmcr file. The interpreter automatically applies indentation to code following most of these conventions.
+- You should always indentate bodies of subroutines and functions with two spaces:
+SUBR $1000
+  PUSH &test
+RTS
+FUNC $1001, @0
+  PUSH @0
+END
+- You should always add another indentation layer when nesting subroutines and functions inside a subroutine:
+SUBR $1000
+  SUBR $1001
+    FUNC $1002, @0
+      PUSH &test
+    END
+  RTS
+RTS
+- You should always unindent RTS and END instructions so that they are at the same indentation layer as the corresponding subroutine/function definition.
+
+VARIABLE NAMES
+-=-=-=-=-=-=-=
+Because variable names can only be of the format $<hex> (or @<hex> in functions), it is really easy to forget what a variable meant. Reserving "special" variable names helps others understand your code. All conventions presented below also implicitely apply to local variables in functions.
+- You should use names $0-$F for working variables (those very used)
+- You can use $0-$9 and $A-$F as if they were different variable groups
+- You should use names $10-$9F for general purpose variables
+- You should use names $A0-$EF for constants and LOOP sequences
+- You should use names $F0-$FE for temporary variables
+- You should ALWAYS use $FF to store operation results that you don't need (like _ in Python)
+- You can use names $100-$FFF for anything you want
+- You should use names $1000-$FFFF for subroutines and functions
+- You can use any name from $10000 for anything you want
+- If you feel like you need to, make a comment at the beginning of the file to explain what a variable represents. You can also make a comment before the line where the variable is first used.
+- ALWAYS make explanatory comments if you don't follow variable naming conventions.
+
+COMPLETE INSTRUCTION GUIDE
+--------------------------
+Note: operations with floating-point numbers will always store results as floating-point numbers, regardless of the amount of integer arguments.
+
+VARIABLES
+-=-=-=-=-
+
+PUT - assign a value to a variable
+PUT #<int>, $<var>    - assign an integer to a variable
+PUT #0, $0            - assign integer 0 to $0
+PUT ###<flpt>, $<var> - assign a floating-point number to a variable
+PUT ##0.1, $0         - assign float 0.1 to $0
+PUT &<str>, $<var>    - assign a string to a variable
+PUT &Test, $0         - assign string 'Test' to $0
+PUT !<bool>, $<var>   - assign a boolean to a variable
+PUT !0, $0            - assign boolean 0 (false) to $0
+PUT $<var>, $<var>    - copy the first variable content to the second variable
+PUT $0, $1            - copy $0 to $1
+
+DEL - delete a variable
+DEL $<var> - delete a variable
+DEL $0     - delete $0
+
+NEW - create a new instance of a variable's type
+NEW $<var>, $<var>, <any>, ... - create a new instance of a variable's type and store it
+NEW $0, $1, #2, ##3.14, &test  - create a new instance of $0's type with arguments 2, 3.14 and "test" and store it in $1.
+NEW accepts *any* variable type (even Python types!).
+Examples:
+NEW $0, $1, #3 (with $0 type INT/int)       -> $1 will be a new int initialized with 3
+NEW $0, $1, &test (with $0 type STR/str)    -> $1 will be a new str initialized with "test"
+NEW $0, $1, $2 (with $0 type FUNC/Function) -> $1 will be a new Function initialized with $2
+NEW $0, $1, $2 (with $0 type UNKNOWN/Thing) -> $1 will be a new Thing initialized with $1
+Because NEW creates new instances in native Python, you are allowed to do things such as:
+NEW $0, $0, &2.5 (with $0 type FLPT/float)
+which would normally require two instructions:
+PUT &2.5, $0
+FLPT $0
+Or, you can do things normally disallowed in mlmcr, such as:
+NEW $0, $0, &0xFF, #16 (with $0 type INT/int)
+which stores the integer representation of hex FF in $1 by storing int('0xFF', 16).
+
+SWAP - swap two variables
+SWAP $<var>, $<var> - swap two variables
+SWAP $0, $1         - swap $0 and $1
+
+KILL - put a variable in the kill list
+KILL $<var>         - kill a variable
+KILL $0             - kill $0
+KILL $<var>, $<var> - kill a variable and get its index
+KILL $0, $1         - kill $0 and store its index in $1
+Killed variables are removed from the active variables and put into a special list, where they can be retrieved later. By default, the kill list is disabled. When the kill list is full, if another variable is killed, the oldest one stored is deleted.
+
+WAKE - retrieve a variable from the kill list
+WAKE $<var>/#<int>, $<var> - wake a variable
+WAKE #0, $0                - wake the variable at index 0 and store it in $0
+When variables are woken, they are removed from the kill list. Indexes given by KILL will break at this point and you will need to update them manually.
+
+KSET - set the maximum lenght of the kill list
+KSET $<var>/#<int> - set the kill lenght
+KSET $0            - set the kill lenght to $0
+If 0 is used as the lenght, the kill list gets disabled. The lenght of the list can't be higher than 65536. If a value smaller than 0 or higher than 65536 is used, it gets automatically corrected.
+
+KGET - retrieve the highest index of the kill list
+KGET $<var> - retrieve the highest index of the kill list
+KGET $0     - retrieve the highest index of the kill list and store it in $0
+
+ADD - sum variables and/or numbers and store the result in a variable
+ADD $<var>/#<int>/###<flpt>, ..., $<var> - sum the arguments and store the result in a variable
+ADD $0, $1, $2, $3                       - sum $0, $1 and $2 and store the result in $3
+ADD $0, #10, ##3.14, $1                  - sum $0, 10 and 3.14 and store the result in $1
+ADD can have an arbitrary amount of arguments. The last one will always be the variable to store the result of the sum of the others into.
+
+SUB - subtract variables and/or numbers and store the result in a variable
+SUB $<var>/#<int>/###<flpt>, ..., $<var> - subtract the arguments and store the result in a variable
+SUB $0, $1, $2, $3                       - subtract $0, $1 and $2 and store the result in $3
+SUB $0, #10, ##3.14, $1                  - subtract $0, 10 and 3.14 and store the result in $1
+SUB can have an arbitrary amount of arguments. The last one will always be the variable to store the result of the subtraction of the others into.
+
+MUL - multiply variables and/or numbers and store the result in a variable
+MUL $<var>/#<int>/##<flpt>, ..., $<var> - multiply the arguments and store the result in a variable
+MUL $0, $1, $2, $3                      - multiply $0, $1 and $2 and store the result in $3
+MUL $0, #10, ##3.14, $1                 - multiply $0, 10 and 3.14 and store the result in $1
+MUL can have an arbitrary amount of arguments. The last one will always be the variable to store the result of the multiplication of the others into.
+
+DIV - divide variables and/or numbers and store the result in a variable
+DIV $<var>/#<int>/##<flpt>, ..., $<var> - divide the arguments and store the result in a variable
+DIV $0, $1, $2, $3                      - divide $0, $1 and $2 and store the result in $3
+DIV $0, #10, ##3.14, $1                 - divide $0, 10 and 3.14 and store the result in $1
+DIV can have an arbitrary amount of arguments. The last one will always be the variable to store the result of the division of the others into.
+DIV always stores results as floating-point numbers.
+
+FDIV - floor divide variables and/or numbers and store the result in a variable
+FDIV $<var>/#<int>/##<flpt>, ..., $<var> - f-divide the arguments and store the result in a variable
+FDIV $0, $1, $2, $3                      - f-divide $0, $1 and $2 and store the result in $3
+FDIV $0, #10, ##3.14, $1                 - f-divide $0, 10 and 3.14 and store the result in $1
+FDIV can have an arbitrary amount of arguments. The last one will always be the variable to store the result of the floor division of the others into.
+FDIV always stores results as integer numbers.
+
+MOD - calculate the remainder of variables and/or numbers and store the result in a variable
+MOD $<var>/#<int>/##<flpt>, ..., $<var> - mod the arguments and store the result in a variable
+MOD $0, $1, $2, $3                      - mod $0, $1 and $2 and store the result in $3
+MOD $0, #10, ##3.14, $1                 - mod $0, 10 and 3.14 and store the result in $1
+MOD can have an arbitrary amount of arguments. The last one will always be the variable to store the result of the remainder calculation of the others into.
+MOD always stores results as integer numbers.
+
+POW - calculate the power of variables and/or numbers and store the result in a variable
+POW $<var>/#<int>/##<flpt>, ..., $<var> - pow the arguments and store the result in a variable
+POW $0, $1, $2, $3                      - pow $0, $1 and $2 and store the result in $3
+POW $0, #10, ##3.14, $1                 - pow $0, 10 and 3.14 and store the result in $1
+POW can have an arbitrary amount of arguments. The last one will always be the variable to store the result of the power calculation of the others into.
+
+ABS - calculate the absolute value of a variable or number
+ABS $<var>/#<int>/##<flpt>, $<var> - abs a number and store the result in a variable
+ABS ##-3.14, $0                    - abs -3.14 and store the result in $0
+
+SQRT - calculate the square root of a variable or number
+SQRT $<var>/#<int>/##<flpt>, $<var> - sqrt a value and store the result in a variable
+SQRT #2, $0                         - sqrt 2 and store the result in $0
+
+CBRT - calculate the cube root of a variable or number
+CBRT $<var>/#<int>/##<flpt>, $<var> - cbrt a value and store the result in a variable
+CBRT #2, $0                         - cbrt 2 and store the result in $0
+
+INC - increment a variable
+INC $<var>         - increment a variable by 1
+INC $0             - increment $0 by 1
+INC $<var>, #<int> - increment a variable
+INC $0, #2         - increment $0 by 2
+INC implicitely converts floating-point numbers to integer numbers.
+
+DEC - decrement a variable
+DEC $<var>         - decrement a variable by 1
+DEC $0             - decrement $0 by 1
+DEC $<var>, #<int> - decrement a variable
+DEC $0, #2         - decrement $0 by 2
+DEC implicitely converts floating-point numbers to integer numbers.
+
+PUSH - print things to screen
+PUSH <any>, ... - print the arguments
+PUSH $0, & test - print $0 and string ' test'
+PUSH can have an arbitrary amount of arguments.
+
+PULL - get a variable from user input
+PULL $<var>        - get a variable from user input
+PULL $0            - get $0 from user input
+PULL $<var>, <any> - display a prompt and get a variable from user input
+PULL $0, $1        - display $1 and get $0 from user input
+PULL $0, &Value:   - display string 'Value: ' and get $0 from user input
+PULL always stores user input as strings. If you need to get other variables types, convert them afterwards.
+
+INT - convert a floating-point number or a string to an integer number
+INT $<var>         - convert a variable to integer
+INT $0             - convert $0 to integer
+INT $<var>, $<var> - store an integer-converted variable into another
+INT $0, $1         - convert $0 to an integer and store it in $1
+Some strings can't be converted to integer.
+
+FLPT - convert an integer number or a string to a floating-point number
+FLPT $<var>         - convert a variable to floating-point
+FLPT $0             - convert $0 to floating-point
+FLPT $<var>, $<var> - store a floating-point-converted variable into another
+FLPT $0, $1         - convert $0 to a floating-point and store it in $1
+Some strings can't be converted to floating-point.
+
+STR - convert an integer number or a floating-point number to a string
+STR $<var>         - convert a variable to string
+STR $0             - convert $0 to string
+STR $<var>, $<var> - store a string-converted variable into another
+STR $0, $1         - convert $0 to a string and store it in $1
+
+BOOL - convert a variable to a boolean
+BOOL $<var>         - convert a variable to boolean
+BOOL $0             - convert $0 to boolean
+BOOL $<var>, $<var> - store a boolean-converted variable into another
+BOOL $0, $1         - convert $0 to a boolean and store it in $1
+
+NULL - put NULL/None in a variable
+NULL $<var> - put None in a variable
+NULL $0     - put None in $0
+A NULL type is displayed as None.
+Use IS to check if a variable is NULL (don't use EQ).
+
+TYPE - check the type of a value
+TYPE <any>, $<var> - check the type of a value
+TYPE $0, $1        - check the type of $0 and store the result in $1
+TYPE will store one of the following strings:
+"INT", "FLPT", "STR", "BOOL", "NULL", "SEQ", "PSEQ", "PACK", "MAP", "SUBR", "FUNC", "UNKNOWN"
+You can use EQ as normal to compare this result.
+
+LINK - join two strings together
+LINK $<var>, $<var>, $<var> - join two string variables and put the result in the third
+LINK $0, $1, $2             - join $0 and $1 and put the result in $2
+LINK &<str>, &<str>, $<var> - join variables and/or strings and put the result in the third argument
+LINK $0, &Test, $1          - join $0 and the string 'Test' and put the result in $1
+
+FSTR - split a string into a sequence
+FSTR $<var>, $<var>         - split the first variable into the second based on ' '
+FSTR $0, $1                 - split $0 into $1
+FSTR $<var>, $<var>, &<str> - split the first variable into the second based on the third var/str
+FSTR $0, $1, $2             - split $0 into $1 based on $2
+
+TSTR - join a sequence into a string
+TSTR $<var>, $<var>         - join the first variable into the second with ' '
+TSTR $0, $1                 - join $0 into $1
+TSTR $<var>, $<var>, &<str> - join the first variable into the second with the third var/str
+TSTR $0, $1, $2             - join $0 into $1 based on $2
+
+MIN - get the minimum value
+MIN <any>, ..., $<var> - get the minimum value
+MIN #2, $0, ##3.14, $1 - get the minimum value between 2, $0 and 3.14 and store it in $1
+When given only an array and the return variable as arguments, the minimum value in the array will be stored.
+
+MAX - get the maximum value
+MAX <any>, ..., $<var> - get the maximum value
+MAX #2, $0, ##3.14, $1 - get the maximum value between 2, $0 and 3.14 and store it in $1
+When given only an array and the return variable as arguments, the maximum value in the array will be stored.
+
+ARRAYS
+-=-=-=
+
+SEQ - build a sequence
+SEQ $<var>                 - build an empty sequence
+SEQ $0                     - build $0
+SEQ $<var>, <any>, ...     - build a sequence from the arguments
+SEQ $0, #1, ##3.14, &Test  - build $0 from 1, 3.14 and 'Test'
+SEQ can have an arbitrary amount of arguments.
+
+PSEQ - build a permanent sequence
+PSEQ $<var>                 - build an empty permanent sequence
+PSEQ $0                     - build $0
+PSEQ $<var>, <any>, ...     - build a permanent sequence from the arguments
+PSEQ $0, #1, ##3.14, &Test  - build $0 from 1, 3.14 and 'Test'
+PSEQ can have an arbitrary amount of arguments.
+Permanent sequences work just like sequences, except the items become read-only after joining.
+
+PACK - pack variables
+PACK $<var>, <any>, ...     - pack the arguments into a variable
+PACK $0, #1, ##3.14, &Test  - pack 1, 3.14 and 'Test' into $0
+Variable packs can't be modified at all after building it, so an empty variable pack is useless.
+
+MAP - build a map
+MAP $<var> - build an empty map
+MAP $0     - build $0
+
+JOIN - add items to an array
+JOIN $<var>, $<any>, ...    - add the arguments to the array
+JOIN $0, #1, ##3.14, &Test  - add 1, 3.14 and 'Test' to $0
+JOIN can have an arbitrary amount of arguments.
+If you use JOIN like this:
+JOIN $<var>, $<seq/pseq/pack/map>,
+the target array is extended with the items of the array in the arguments.
+Use NEST if you want to simply append an array to an array.
+
+NEST - add an array to an array
+NEST $<var>, $<var>, ... - nest the arguments into the array
+NEST $0, $1              - nest $1 into $0
+NEST can have an arbitrary amount of arguments.
+Non-array arguments are ignored by NEST.
+
+POP - remove an item from an array based on its index
+POP $<var>, $<var>/#<int>         - remove an item from the array based on its index
+POP $0, #0                        - remove item at index 0 from $0
+POP $<var>, $<var>/#<int>, $<var> - remove an item from the array based on its index and store it
+POP $0, $1, $2                    - remove item at index $1 from $0 and store it in $2
+If you want to remove the last item added to an array, use POP like this:
+POP $0, #-1 (or POP $0, #-1, $1 if you want to get its value)
+
+REM - remove an item from an array based on its value
+REM $<var>, <any> - remove an item from the array based on its value
+REM $0, &Test     - remove 'Test' from $0
+If more than one occurence of the value exists, REM will only remove the first.
+
+GETI - get the index of a value in an array
+GETI $<var>, <any>, $<var> - get the index of a value in an array
+GETI $0, #0, $1            - get the index of 0 in $0 and store it in $1
+
+GET - get a value in an array based on its index
+GET $<var>, $<var>/#<int>, $<var> - get a value in an array based on its index
+GET $0, #0, $1                    - get the value in $0 at index 0 and store it in $1
+
+REST - get part of an array
+REST $<var>, start, $<var>       - get the part of an array with indexes from start
+REST $0, #2, $1                  - get the part of $0 from index 2 (inclusive) and store it in $1
+REST $0, #-3, $1                 - get the part of $0 from index -3 (inclusive) and store it in $1
+REST $<var>, start, stop, $<var> - get the part of an array with indexes between start and stop
+REST $0, #0, #2, $1              - get the part of $0 between indexes 0 (inclusive) and 2 (exclusive) and store it in $1
+REST $0, #1, #-1, $1             - get the part of $0 between indexes 0 (inclusive) and -1 (exclusive) and store it in $1
+start and stop can be integers or floating-point numbers (although the latters will be implicitely converted to integers).
+
+SET - insert a value in array before a given index
+SET $<var>, $<var>/#<int>, <any> - insert a value in the array before index
+SET $0, $1, &Test                - insert 'Test' before $1 in $0
+
+REPL - replace a value in an array based on its index
+REPL $<var>, $<var>/#<int>, <any> - replace a value in the array
+REPL $0, #0, $1                   - replace index 0 in $0 with $1
+
+MSET - set an item in a map
+MSET $<var>, <any>, <any> - set a key-value pair in the map
+MSET $0, &pi, ##3.14      - set key 'pi' to 3.14 in $0
+MSET $0, $1, $2           - set key $1 to $2 in $0
+
+MGET - get a value from a key in a map
+MGET $<var>, <any>, $<var> - get a value in the map
+MGET $0, &pi, $1           - get value for 'pi' in $0 and store it in $1
+
+MPOP - remove an item from a map based on its key
+MPOP $<var>, <any>         - remove an item based on its key
+MPOP $0, &pi               - remove item with key 'pi' from $0
+MPOP $<var>, <any>, $<var> - remove an item based on its key and store its value
+MPOP $0, &pi, $1           - remove item with key 'pi' from $0 and store its value in $1
+
+MPLI - remove and store the last item from a map (Map Pop Last In)
+MPLI $<var>, $<var> - remove and store the last item in the map as a pack
+MPLI $0, $1         - remove the last item of $0 and store it in $1 as a pack
+
+GRAB - get all key-value pairs from a map
+GRAB $<var>, $<var> - get a pack of key-value packs from the map
+GRAB $0, $1         - get a pack of key-value packs from $0 and store it in $1
+
+KEYS - get all keys from a map
+KEYS $<var>, $<var> - get a pack of keys from the map
+KEYS $0, $1         - get a pack of keys from $0 and store it in $1
+
+VALS - get all values from a map
+VALS $<var>, $<var> - get a pack of values from the map
+VALS $0, $1         - get a pack of values from $0 and store it in $1
+
+LEN - get the lenght of an array
+LEN $<var>, $<var> - get the lenght of the array
+LEN $0, $1         - get the lenght of $0 and store it in $1
+
+WIPE - clear an array of its items
+WIPE $<var> - clear the array
+WIPE $0     - clear $0
+
+COPY - create a shallow copy of an array
+COPY $<var>, $<var> - copy the array
+COPY $0, $1         - copy $0 in $1
+
+OPERATORS
+-=-=-=-=-
+All operators store the results of their operations as booleans.
+
+EQ - check if two values are equal
+EQ <any>, <any>, $<var> - check if two values are equal
+EQ $0, #1, $1           - check if $0 is equal to 1 and store the result in $1
+
+NE - check if two values are not equal
+NE <any>, <any>, $<var> - check if two values are not equal
+NE $0, #1, $1           - check if $0 is not equal to 1 and store the result in $1
+
+GT - check if a value is greater than another
+GT <any>, <any>, $<var> - check if a value is greater than another
+GT $0, #1, $1           - check if $0 is greater than 1 and store the result in $1
+
+LT - check if a value is less than another
+LT <any>, <any>, $<var> - check if a value is less than another
+LT $0, #1, $1           - check if $0 is less than 1 and store the result in $1
+
+GE - check if a value is greater than or equal to another
+GE <any>, <any>, $<var> - check if a value is greater than or equal to another
+GE $0, #1, $1           - check if $0 is greater than or equal to 1 and store the result in $1
+
+LE - check if a value is less than or equal to another
+LE <any>, <any>, $<var> - check if a value is less than or equal to another
+LE $0, #1, $1           - check if $0 is less than or equal to 1 and store the result in $1
+
+AND - check if two values are both true
+AND <any>, <any>, $<var> - check if two values are both true
+AND $0, $F, $1           - check if both $0 and $F are true and store the result in $1
+
+OR - check if at least a value is true
+OR <any>, <any>, $<var> - check if at least a value is true
+OR $0, $F, $1           - check if either $0 or $F is true and store the result in $1
+
+NOT - reverse a value
+NOT <any>, $<var> - reverse a value
+NOT $0, $1        - reverse $0 and store the result in $1
+
+IS - check if two values are the same
+IS <any>, <any>, $<var> - check if two values are the same
+IS $0, $F, $1           - check if $0 is the same as $F and store the result in $1
+IS checks whether two values occupy the same memory location, not if they are equal.
+
+IN - check if a value is in an array
+IN <any>, $<var>, $<var> - check if a value is in the array
+IN &Test, $0, $1         - check if 'Test' is in $0 and store the result in $1
+
+CONTROL FLOW
+-=-=-=-=-=-=
+
+IF - the if equivalent in mlmcr
+IF condition, subroutine
+IF condition, function, arguments..., return
+In an IF clause, the subroutine/function is called if the condition is true.
+condition must be a variable that can be evaluated to a boolean using Python. Which means it generally should be a boolean coming from an operation.
+For example, in:
+GT $0, #1, $1
+IF $1, ...
+$1 is a valid condition as it comes from a GT operation, which always returns a boolean.
+If you want to use a non-boolean as a condition, read the bool evaluation rules in Python.
+subroutine must be a SUBR, and is called if the condition is true.
+function must be a FUNC (or equivalent), and is called if the condition is true.
+When using the function syntax, you can put arguments after the function address, and need to specify a variable to store the return value of the function in.
+
+ELIF - the else if equivalent in mlmcr
+ELIF condition, subroutine
+ELIF condition, function, arguments..., return
+In an ELIF clause, the subroutine/function is called if all conditions in previous IF/ELIF clauses were false and the current clause condition is true.
+The syntax works exactly like IF.
+
+ELSE - the else equivalent in mlmcr
+ELSE subroutine
+ELSE function, arguments..., return
+In an ELSE clause, the subroutine/function is called if all conditions in previous IF/ELIF clauses were false.
+The syntax works exactly like IF, except that no condition needs to be provided.
+
+There can be any number of ELIF clauses after an IF. Only one IF and ELSE instruction can exist in an if stack. ELIF and ELSE clauses are optional in an if stack.
+Here are some examples of valid if stacks:
+IF ...
+IF ... - ELIF ... - ELIF ...
+IF ... - ELSE ...
+IF ... - ELIF ... - ELSE ...
+And below are some examples of invalid if stacks:
+ELIF ... - ELSE ...
+ELSE ...
+ELIF ... - ELIF ... - ELIF ...
+ELSE ... - ELIF ... - IF ...
+
+FOR - the for equivalent in mlmcr
+FOR item, iterable, subroutine
+FOR item, iterable, function, arguments..., return
+FOR in mlmcr works like the for <item> in <iterable> syntax in Python.
+This means that, for example, to create and fill a SEQ array with 10 random integers, you can do:
+SEQ $0
+LOOP #10, $A0
+SUBR $1000
+  RAND $F0
+  JOIN $0, $F0
+RTS
+FOR $FF, $A0, $1000
+If you need to access each item in an iterable, you can simply do that by doing this (the following code will print the first 20 powers of 2):
+LOOP #1, #21, $1
+FUNC $1000, @0
+  POW #2, @0, @1
+  PUSH @1
+END
+FOR $0, $1, $1000, $0, $FF
+FOR stores the return value of the function called by it at each iteration. This code will therefore correctly print the first 20 powers of 2 (from 2^1 to 2^20):
+PUT #2, $0
+FUNC $1000, @0
+  PUSH @0
+  MUL @0, #2, @0
+  GIVE @0
+END
+LOOP #20, $1
+FOR $FF, $1, $1000, $0, $0
+
+FORI - the indexed for equivalent in mlmcr
+FORI index, item, iterable, subroutine
+FORI index, item, iterable, function, arguments..., return
+FORI in mlmcr works like the for <index>, <item> in enumerate(<iterable>) syntax in Python.
+The syntax is also exactly like FOR, but with an additional index to track at which iteration the for currently is.
+
+ALA - the while equivalent in mlmcr (As Long As)
+ALA condition, subroutine
+ALA condition, function, arguments..., return
+
+DALA - the do-while equivalent in mlmcr (Do - As Long As)
+DALA condition, subroutine
+DALA condition, function, arguments..., return
+
+LOOP - create a sequence of integers respecting a specificed set of rules
+LOOP stop, $<var>              - create a sequence from 0 to stop
+LOOP #10, $0                   - create 0(included)->10(excluded) in $0
+LOOP start, stop, $<var>       - create a sequence from start to stop
+LOOP $1, #10, $0               - create $1(included)->10(excluded) in $0
+LOOP start, stop, step, $<var> - create a sequence from start to stop with step
+LOOP $1, #10, #2               - create $1(included)->10(excluded);step=2 in $0
+LOOP can accept negative step values.
+LOOP can be used with floating-point numbers, but those will be implicitely converted to integers.
+Example loops:
+LOOP #10, $0           -> (0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
+LOOP #-3, #8, $0       -> (-3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7)
+LOOP #4, #-12, #-2, $0 -> (4, 2, 0, -2, -4, -6, -8, -10)
+
+SUBROUTINES & FUNCTIONS
+-=-=-=-=-=-=-=-=-=-=-=-
+
+SUBR - create a subroutine
+SUBR $<var> - create a subroutine
+SUBR $0     - create a subroutine at $0
+Subroutines support all instructions, except for PYEVAL and PYEXEC. Subroutines use global variables. You can create other subroutines and function inside of a subroutine and they will be usable even outside of it. Errors in subroutine instructions will only show up at runtime.
+If a subroutine is meant to only be called from a function, you can directly write instructions using "function notation" (which means using @<hex> for variables instead of $<hex>). Make sure to not call subroutines written in "function notation" outside functions to avoid errors.
+
+RTS - end a subroutine
+RTS - end a subroutine and return
+RTS can only be used inside a subroutine. RTS must be the last instruction of the subroutine. If RTS is not the last instruction, every instruction after it will be executed outside of the target subroutine.
+
+JUMP - call a subroutine
+JUMP $<var> - call a subroutine
+JUMP $0     - call subroutine $0
+
+FUNC - create a function
+FUNC $<var>, @<arg>, @... - create a function
+FUNC $0, @0, @F           - create a function at $0 with arguments @0 and @F
+Functions support all instructions, except for PYEVAL, PYEXEC, KILL, WAKE, KSET and KGET. Functions use local variables. You can't create other functions or subroutines inside of a function. Errors in subroutine instructions will only show up at runtime. Functions support an arbitary amount of arguments.
+Variables in functions must be of name @<hex> and can't be of name $<hex>.
+
+TAKE - copy a global variable into a local variable in a function
+TAKE $<var>, @<arg> - copy a variable
+TAKE $1, @A         - copy global $1 into local @A
+TAKE can only be used inside a function.
+TAKE automatically converts $<hex> variables in subroutines to @<hex>. If you still need the original version, don't overwrite the original subroutine using SYNC on the "copied" subroutine.
+
+SYNC - copy a local variable into a global variable in a function
+SYNC @<arg>, $<var> - copy a variable
+SYNC @A, $1         - copy local @A into global $1
+SYNC can only be used inside a function.
+
+GIVE - return a value from a function
+GIVE <any> - return a value
+GIVE @0    - return @0
+GIVE #1    - return 1
+GIVE can only be used inside a function. Using GIVE multiple times will return only the last value. If you need to return multiple values, put them in an array and return that instead.
+
+END - end a function
+END - end a function and return
+END can only be used inside a function. END must be the last instruction of the function. If END is not the last instruction, every instruction after it will be executed outside of the target function.
+
+CALL - call a function
+CALL $<var>, ..., $<var> - call a function
+CALL $0, #1, ##3.14, $F  - call function $0, pass it 1 and 3.14 and store the return value in $F
+All functions return values, even when GIVE instructions are not used. In that case, 'None' will be returned. By convention, you should use variable $FF as the return address if the function doesn't return anything (or if the return value isn't needed).
+
+OTHER INSTRUCTIONS
+-=-=-=-=-=-=-=-=-=
+
+RAND - get a random integer
+RAND $<var>           - get a random integer
+RAND $0               - store a random integer between 0 and 65536 in $0
+RAND min, max, $<var> - get a random integer between min (included) and max (excluded)
+RAND #1, #5, $0       - store a random integer between 1 and 5 in $0
+
+HALT - delay code execution
+HALT $<var>/#<int>/##<flpt> - halt the process
+HALT ##3.14                 - halt the process for 3.14 seconds
+
+EXIT - quit the current script or interpreter
+EXIT - quit and return 0
+EXIT $<var>/#<int>/##<flpt> - quit and return a code
+EXIT #1                     - quit and return 1
+
+PYEVAL - evaluate a Python expression
+PYEVAL <expression> - evaluate an expression
+PYEVAL <expression>, $<var> - evaluate an expression and store the result in a variable
+PYEVAL has not been tested with every expression and is not guaranteed to work.
+
+PYEXEC - execute Python code
+PYEXEC exec("<code>") - execute code
+PYEXEC has not been tested with every code piece and is not guaranteed to work.
+Code must be on one single line. Use the escape sequence '\n' to feed a new line.
+Example:
+PYEXEC exec("for i in range(10):\n    print(i)")
+If you want to parse an mlmcr instruction while executing Python code you can call 'parse' as follows:
+PYEXEC exec("parse(namespace, 'PUSH &test')")
+You can substitute 'PUSH &test' with any valid mlmcr instruction.
+'namespace' is a dict containing several items described at the beginning of the 'parse' function in 'mlmcr.py'.
+While executing Python code, you can access several namespace items with, for example:
+PYEXEC exec("print(namespace['vars']['$0'])")
+The code above would print mlmcr variable $0 in Python.
+For more information, check the 'parse' function definition docstring as above.
