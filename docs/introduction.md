@@ -1,0 +1,21 @@
+## Introduction
+
+Welcome to the wonderful world of mlmcr! This is the documentation, where you'll (hopefully) learn how to code in this weird language.
+
+To start off, as the tradition says, we'll make the classic "Hello, world!" program:
+```
+push &Hello/,/ world!  ;; Prints "Hello, world!"
+```
+Let's analyze this instruction token by token:
+- `push` is the opcode, which it dictates which operation must be done: here `push` prints stuff to the console window
+- `&Hello/,/ world!` is an argument, which is used to send data to the opcode: it has the `&` prefix, which is used to indicate a string. I'll explain later what the `/,/` part is.
+- `;; Print "Hello, world!"` is a comment and gets ignored by mlmcr
+
+What about a slightly more complex example?
+```
+push #1, & + , #2, & = , #3
+```
+Here `push` is the same as before, but we have more than one argument this time. In fact, we have 5: `#1`, `& + `, `#2`, `& = ` and `#3`.
+We use commas to separate the arguments.
+
+You need to be very careful when passing arguments, since their amount, their order and their prefixes all count.
