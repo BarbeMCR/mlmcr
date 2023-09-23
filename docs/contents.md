@@ -9,6 +9,7 @@
 - [Variables](variables.md)
 - [Arithmetics](arithmetics.md)
 - [Arrays](arrays.md)
+- [Core tools](tools.md)
 - [Control Flow](controlflow.md)
 - [Namespaces](namespaces.md)
 - [Functions](functions.md)
