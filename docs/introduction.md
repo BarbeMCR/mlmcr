@@ -9,7 +9,7 @@ push &Hello/,/ world!  ;; Prints "Hello, world!"
 Let's analyze this instruction token by token:
 - `push` is the opcode, which it dictates which operation must be done: here `push` prints stuff to the console window
 - `&Hello/,/ world!` is an argument, which is used to send data to the opcode: it has the `&` prefix, which is used to indicate a string. I'll explain later what the `/,/` part is.
-- `;; Print "Hello, world!"` is a comment and gets ignored by mlmcr
+- `;; Print "Hello, world!"` is a comment. When a `;;` is hit in an instruction, everything past it will get ignored.
 
 What about a slightly more complex example?
 ```
