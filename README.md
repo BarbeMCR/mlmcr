@@ -39,7 +39,7 @@ push $0
 - Instructions are executed one at a time, without the possibility of nesting them together, and are composed of an opcode and a number of arguments
 - Supports many standard Python types (int, float, str, bool, NoneType, list, tuple, dict, range)
 - Allows variables to be "killed" (i.e. put in a special list, the kill list) and woken up again to limit namespace pollution
-- Has an extra array type: the pseudosequence (which is a sort of read-only list)
+- Has an extra array type: the permasequence (which is a sort of read-only list)
 - Supports if-elif-else statements, for, indexed for, while and do-while loops
 - Supports error handling and throwing custom errors
 - Has functions, subroutines and lambdas
