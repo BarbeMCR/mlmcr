@@ -22,4 +22,13 @@ We use commas to separate the arguments.
 
 You need to be very careful when passing arguments, since their amount, their order and their prefixes all count.
 
+To end your mlmcr session, you can use the `EXIT` opcode:
+```
+EXIT [excode]  (excode:INT)
+
+EXIT
+EXIT #1
+```
+You can pass an integer to `EXIT` in order to set an exit code (the default is `0`).
+
 If you want to save any program for later usage, you can put the instructions in a text editor and tell it to save the file with a `.mlmcr` extension.
