@@ -21,3 +21,5 @@
 - [Extending mlmcr](extending.md)
 - [Standard library](stdlib.md)
 - [Python API reference](pyref.md)
+
+[Table of core opcodes](table.md)
