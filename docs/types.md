@@ -175,6 +175,8 @@ To avoid getting errors because you forgot the arrow notation, it might be helpf
 - you should use the arrow notation every time the variable needs to be read and rewritten afterwards (e.g. when dealing with arrays)
 - in general, the arrow notation should be used every time the opcode needs the actual name of the variable, instead of its contents
 
+One thing to keep in mind when using the arrow notation is that, (almost) always, the variable names that follow it are resolved in the current scope (i.e. you can't specify a different namespace than the current one).
+
 *Note: if you want to distinguish between the three different prefixes, you can call `->` the "arrow notation", `<-` the "inverted arrow notation", and `<->` the "bidirectional arrow notation".*
 
 ### The `>>` prefix
