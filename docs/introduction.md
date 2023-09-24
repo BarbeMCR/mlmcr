@@ -11,6 +11,8 @@ Let's analyze this instruction token by token:
 - `&Hello/,/ world!` is an argument, which is used to send data to the opcode: it has the `&` prefix, which is used to indicate a string. I'll explain later what the `/,/` part is.
 - `;; Print "Hello, world!"` is a comment. When a `;;` is hit in an instruction, everything past it will get ignored.
 
+Instructions are case-insensitive, meaning that `push &test`, `PUSH &test` and `pUsH &test` will all print `'test'`. However, strings are case-sensitive, so `PUSH &TEST` will print `'TEST'` instead.
+
 What about a slightly more complex example?
 ```
 push #1, & + , #2, & = , #3
