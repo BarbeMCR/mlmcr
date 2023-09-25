@@ -41,7 +41,7 @@ GE a, b, store  (a:*, b:*, store:->{BOOL})
 LE a, b, store  (a:*, b:*, store:->{BOOL})
 AND a, b, store  (a:*, b:*, store:->{BOOL})
 OR a, b, store  (a:*, b:*, store:->{BOOL})
-NOT what, store (what:*, store:->{BOOL})
+NOT what, store  (what:*, store:->{BOOL})
 IS a, b, store  (a:*, b:*, store:->{BOOL})
 IN a, b, store  (a:*, b:*, store:->{BOOL})
 ISNT a, b, store  (a:*, b:*, store:->{BOOL})
@@ -52,3 +52,18 @@ mlmcr doesn't have any bitwise operator for now, though I might include them eve
 The operators are pretty straightforward: the only unintuitive thing is probably the `IS` (and `ISNT`) opcode.
 It works by returning the value of Python's `id(a) == id(b)` (or `id(a) != id(b)`).
 In practice, you'll probably only need it for comparing stuff to literal nulls and booleans (e.g. `IS $0, <>N, ->$1`).
+
+### Console IO
+
+There are two opcodes dedicated to console IO (i.e. user interaction through the terminal window mlmcr runs in):
+- `PUSH`, which prints things to the screen (by writing to `stdout`)
+- `PULL`, which gets input from the user (by reading from `stdin`)
+
+```
+PUSH stuff...  (stuff...:*)
+PULL into, [prompt]  (into:->{STR}, prompt:STR)
+
+PUSH &stuff, #2  ;; prints "stuff2"
+PULL ->$0, &Input:   ;; prints "Input: " and stores the input in $0
+PULL ->$0  ;; stores the input in $0 without printing anything
+```
