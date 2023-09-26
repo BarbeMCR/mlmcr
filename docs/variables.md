@@ -38,6 +38,8 @@ To do that, the `THIS` keyword must be used before the variable name, as if it w
 
 `THIS` can always be used, even when the current namespace is `_DEFAULT`, since the `mlmcr.this` function it calls will resolve to it.
 
+`THIS` must also be used when calling an opcode from a different namespace than `_DEFAULT` (we'll see this later).
+
 ### Managing variables
 
 In mlmcr, there are three different opcodes to assign to a variable:
