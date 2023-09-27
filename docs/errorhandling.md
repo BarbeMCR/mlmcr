@@ -51,6 +51,7 @@ WHEN error, call, [args..., return]  (error:STR|'*', call:SUBR|FUNC|PROC, args..
 WHEN &Name error, $2, ->$FF
 ```
 Here, `error` must be one of the names above, or that of a custom error (see below). Keep in mind that error names are **case-sensitive**.
+A lone star (i.e. only a `*`) can also be used as a name. In that case, any error occured will be handled.
 If an error of type `error` was thrown before, `call` will then be called.
 
 After any `WHEN` opcode, you can optionally place an `ACE` opcode:
