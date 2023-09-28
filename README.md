@@ -69,6 +69,7 @@ To install and use mlmcr from source, download and extract the source code, then
 
 To freeze mlmcr, download and extract the source code (using only basic libraries), then type: `pyinstaller --console --hiddenimport math --hiddenimport random mlmcr.py`.
 To package extra Python modules (standard or not), type `--hiddenimport <library>` before `mlmcr.py`.
+Then, copy the entirety of the `cores` folder and all `.mlmch` files that come in the root directory into the folder where your frozen copy of the mlmcr interpreter was built.
 
 ## License
 
