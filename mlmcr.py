@@ -1184,8 +1184,8 @@ def memoryError():
 # Startup
 if __name__ == '__main__':
     for core in cores:
-        if os.path.isfile(os.path.join('.', 'cores', core)):
-            import_mlmch(os.path.join('.', 'cores', core))
+        if os.path.isfile(os.path.join('cores', f'{core}.mlmch')):
+            import_mlmch(os.path.join('cores', core))
         else:
             print(f"Interpreter warning: missing core {core}.mlmch!")
     backup('namespaces')
