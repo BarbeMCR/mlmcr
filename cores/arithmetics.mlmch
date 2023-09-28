@@ -1,0 +1,214 @@
+name >>_default
+
+pyblock
+def add(args):  # ADD a, b, c..., result  (a+b+c...:INT|FLPT, result:->{INT|FLPT})
+    def _add(args):
+        clean = True
+        if has(args[0], '__add__'):
+            result = args[0]
+            for arg in args[1:-1]:
+                if has(arg, '__add__'):
+                    result += arg
+                else:
+                    clean = False
+                    cantDo('add', arg)
+        else:
+            clean = False
+            cantDo('add', args[0])
+        if clean: this().set_var(args[-1], result)
+    atleast(_add, args, 3)
+
+def subtract(args):  # SUB a, b, c..., result  (a+b+c...:INT|FLPT, result:->{INT|FLPT})
+    def _subtract(args):
+        clean = True
+        if has(args[0], '__sub__'):
+            result = args[0]
+            for arg in args[1:-1]:
+                if has(arg, '__sub__'):
+                    result -= arg
+                else:
+                    clean = False
+                    cantDo('subtract', arg)
+        else:
+            clean = False
+            cantDo('subtract', args[0])
+        if clean: this().set_var(args[-1], result)
+    atleast(_subtract, args, 3)
+
+def multiply(args):  # MUL a, b, c..., result  (a+b+c...:INT|FLPT, result:->{INT|FLPT})
+    def _multiply(args):
+        clean = True
+        if has(args[0], '__mul__'):
+            result = args[0]
+            for arg in args[1:-1]:
+                if has(arg, '__mul__'):
+                    result *= arg
+                else:
+                    clean = False
+                    cantDo('multiply', arg)
+        else:
+            clean = False
+            cantDo('multiply', args[0])
+        if clean: this().set_var(args[-1], result)
+    atleast(_multiply, args, 3)
+
+def divide(args):  # DIV a, b, c..., result  (a+b+c...:INT|FLPT, result:->{FLPT})
+    def _divide(args):
+        clean = True
+        if has(args[0], '__truediv__'):
+            result = args[0]
+            for arg in args[1:-1]:
+                if has(arg, '__truediv__'):
+                    result /= arg
+                else:
+                    clean = False
+                    cantDo('divide', arg)
+        else:
+            clean = False
+            cantDo('divide', args[0])
+        if clean: this().set_var(args[-1], result)
+    atleast(_divide, args, 3)
+
+def floor_divide(args):  # FDIV a, b, c..., result  (a+b+c...:INT|FLPT, result:->{INT})
+    def _floor_divide(args):
+        clean = True
+        if has(args[0], '__floordiv__'):
+            result = args[0]
+            for arg in args[1:-1]:
+                if has(arg, '__floordiv__'):
+                    result //= arg
+                else:
+                    clean = False
+                    cantDo('floor divide', arg)
+        else:
+            clean = False
+            cantDo('floor divide', args[0])
+        if clean: this().set_var(args[-1], result)
+    atleast(_floor_divide, args, 3)
+
+def modulo(args):  # MOD a, b, c..., result  (a+b+c...:INT|FLPT, result:->{INT})
+    def _modulo(args):
+        clean = True
+        if has(args[0], '__mod__'):
+            result = args[0]
+            for arg in args[1:-1]:
+                if has(arg, '__mod__'):
+                    result %= arg
+                else:
+                    clean = False
+                    cantDo('modulo', arg)
+        else:
+            clean = False
+            cantDo('modulo', args[0])
+        if clean: this().set_var(args[-1], result)
+    atleast(_modulo, args, 3)
+
+def power(args):  # DIV a, b, c..., result  (a+b+c...:INT|FLPT, result:->{INT|FLPT})
+    def _power(args):
+        clean = True
+        if has(args[0], '__pow__'):
+            result = args[0]
+            for arg in args[1:-1]:
+                if has(arg, '__pow__'):
+                    result **= arg
+                else:
+                    clean = False
+                    cantDo('raise to a power', arg)
+        else:
+            clean = False
+            cantDo('raise to a power', args[0])
+        if clean: this().set_var(args[-1], result)
+    atleast(_power, args, 3)
+
+def absolute_value(args):  # ABS n, absn  (n:INT|FLPT, absn:->{INT|FLPT})
+    def _absolute_value(args):
+        clean = True
+        if has(args[0], '__abs__'):
+            absn = abs(args[0])
+        else:
+            clean = False
+            cantDo('compute the absolute power of', args[0])
+        if clean: this().set_var(args[1], absn)
+    when(_absolute_value, args, 2)
+
+def increase(args):  # INC var, [step]  (var:<->{INT|FLPT}, step:INT|FLPT)
+    def _increase(args):
+        if len(args) == 1:
+            args.append(1)
+        if has(args[0], '__add__'):
+            if has(args[1], '__add__'):
+                this().set_var(args[0], this().get_var(args[0])+args[1])
+            else:
+                cantDo('increase', args[1])
+        else:
+            cantDo('increase', args[0])
+    between(_increase, args, 1, 2)
+
+def decrease(args):  # DEC var, [step]  (var:<->{INT|FLPT}, step:INT|FLPT)
+    def _decrease(args):
+        if len(args) == 1:
+            args.append(1)
+        if has(args[0], '__sub__'):
+            if has(args[1], '__sub__'):
+                this().set_var(args[0], this().get_var(args[0])-args[1])
+            else:
+                cantDo('decrease', args[1])
+        else:
+            cantDo('decrease', args[0])
+    between(_decrease, args, 1, 2)
+
+def imul(args):  # IMUL var, [step]  (var:<->{INT|FLPT}, step:INT|FLPT)
+    def _imul(args):
+        if len(args) == 1:
+            args.append(1)
+        if has(args[0], '__mul__'):
+            if has(args[1], '__mul__'):
+                this().set_var(args[0], this().get_var(args[0])*args[1])
+            else:
+                cantDo('multiply', args[1])
+        else:
+            cantDo('multiply', args[0])
+    between(_imul, args, 1, 2)
+
+def idiv(args):  # IDIV var, [step]  (var:<->{FLPT}, step:INT|FLPT)
+    def _idiv(args):
+        if len(args) == 1:
+            args.append(1)
+        if has(args[0], '__div__'):
+            if has(args[1], '__div__'):
+                this().set_var(args[0], this().get_var(args[0])/args[1])
+            else:
+                cantDo('divide', args[1])
+        else:
+            cantDo('divide', args[0])
+    between(_idiv, args, 1, 2)
+
+def positive(args):  # POS var, store  (var:INT|FLPT, store:->{INT|FLPT})
+    def _positive(args):
+        if has(args[0], '__pos__'):
+            this().set_var(args[1], +args[0])
+        else:
+            typeErr(0)
+    when(_positive, args, 2)
+
+def negative(args):  # NEG var, store  (var:INT|FLPT, store:->{INT|FLPT})
+    def _negative(args):
+        if has(args[0], '__neg__'):
+            this().set_var(args[1], -args[0])
+        else:
+            typeErr(0)
+    when(_negative, args, 2)
+
+bind(add, 'ADD')
+bind(subtract, 'SUB')
+bind(multiply, 'MUL')
+bind(divide, 'DIV')
+bind(floor_divide, 'FDIV')
+bind(modulo, 'MOD')
+bind(power, 'POW')
+bind(absolute_value, 'ABS')
+bind(increase, 'INC')
+bind(decrease, 'DEC')
+bind(positive, 'POS')
+bind(negative, 'NEG')
+pyend

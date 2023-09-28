@@ -1,0 +1,84 @@
+name >>_default
+
+pyblock
+def toflpt(args):  # FLPT from, to  (from:INT|STR|BOOL, to:->{FLPT})
+    def _toflpt(args):
+        if check(args[0], (int, str, bool)):
+            conv = float(args[0])
+            this().set_var(args[1], conv)
+        else:
+            typeErr(0)
+    when(_toflpt, args, 2)
+
+def tostr(args):  # STR from, to  (from:INT|FLPT|BOOL, to:->{STR})
+    def _tostr(args):
+        if check(args[0], (int, float, bool)):
+            conv = str(args[0])
+            this().set_var(args[1], conv)
+        else:
+            typeErr(0)
+    when(_tostr, args, 2)
+
+def tobool(args):  # BOOL from, to  (from:*, to:->{BOOL})
+    def _tobool(args):
+        conv = bool(args[0])
+        this().set_var(args[1], conv)
+    when(_tobool, args, 2)
+
+def toint(args):  # INT from, to  (from:FLPT|STR|BOOL, to:->{INT})
+    def _toint(args):
+        if check(args[0], (float, str, bool)):
+            conv = int(args[0])
+            this().set_var(args[1], conv)
+        else:
+            typeErr(0)
+    when(_toint, args, 2)
+
+def tobin(args):  # BIN from, to  (from:INT, to:->{STR})
+    def _tobin(args):
+        if check(args[0], int):
+            conv = bin(args[0])
+            this().set_var(args[1], conv)
+        else:
+            typeErr(0)
+    when(_tobin, args, 2)
+
+def tooct(args):  # OCT from, to  (from:INT, to:->{STR})
+    def _tooct(args):
+        if check(args[0], int):
+            conv = oct(args[0])
+            this().set_var(args[1], conv)
+        else:
+            typeErr(0)
+    when(_tooct, args, 2)
+
+def tohex(args):  # HEX from, to  (from:INT, to:->{STR})
+    def _tohex(args):
+        if check(args[0], int):
+            conv = hex(args[0])
+            this().set_var(args[1], conv)
+        else:
+            typeErr(0)
+    when(_tohex, args, 2)
+
+def nullify(args):  # NULL var  (var:->{NULL})
+    def _nullify(args):
+        this().set_var(args[0], None)
+    when(_nullify, args, 1)
+
+def mltype(args):  # TYPE var, store (var:*, store:->{STR})
+    def _mltype(args):
+        t = gettype(args[0])
+        this().set_var(args[1], t)
+    when(_mltype, args, 2)
+
+bind(toflpt, 'FLPT')
+bind(tostr, 'STR')
+bind(tobool, 'BOOL')
+bind(toint, 'INT')
+bind(tobin, 'BIN')
+bind(tooct, 'OCT')
+bind(tohex, 'HEX')
+bind(nullify, 'NULL')
+bind(mltype, 'TYPE')
+pyend

@@ -1,1717 +1,1200 @@
+#!/usr/bin/env python3
+
 # mlmcr, the unnecessary Assembly-like programming language
 # Copyright (C) 2023  BarbeMCR
 
-import sys
-import string
-import time
-import random
-import math
-import ctypes
+from typing import Any, Self, Iterable
 
-if sys.platform.startswith('win32') and __name__ == '__main__':
-    ctypes.windll.kernel32.SetConsoleTitleW("mlmcr (revision 2)")
+import sys
+import os
+import re
+import itertools
+
+# Builtin classes
+class MlmcrError(Exception):
+    pass
+
+class ThisLookupError(Exception):
+    def __init__(self, ref: str) -> None:
+        self.ref = ref
 
 class PermaSequence:
-    """Read-only list interface."""
-    def __init__(self):
-        self.sequence = []
-    def __getitem__(self, index):
-        return self.sequence[index]
-    def __contains__(self, value):
+    def __init__(self, *items: tuple) -> None:
+        self.sequence = [*items]
+    def __getitem__(self, index: slice | int) -> Self | Any:
+        if isinstance(index, slice):
+            return PermaSequence(*self.sequence.__getitem__(index))
+        return self.sequence.__getitem__(index)
+    def __reversed__(self):
+        return reversed(self.sequence)
+    def __contains__(self, value: Any) -> bool:
         return value in self.sequence
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.sequence)
-    def __iter__(self):
+    def __iter__(self) -> Any:
         return iter(self.sequence)
-    def __str__(self):
-        return str(self.sequence)
-    def append(self, item):
+    def __str__(self) -> str:
+        return f'P{str(self.sequence)}'
+    def __add__(self, value: Any) -> list:
+        return self.sequence + value
+    def __mul__(self, value: int) -> list:
+        return self.sequence * value
+    def __eq__(self, value: Any) -> bool:
+        return self.sequence == value
+    def __ne__(self, value: Any) -> bool:
+        return self.sequence != value
+    def __gt__(self, value: Any) -> bool:
+        return self.sequence > value
+    def __lt__(self, value: Any) -> bool:
+        return self.sequence < value
+    def __ge__(self, value: Any) -> bool:
+        return self.sequence >= value
+    def __le__(self, value: Any) -> bool:
+        return self.sequence <= value
+    def __reduce__(self) -> str | tuple[Any, ...]:
+        return self.sequence.__reduce__()
+    def append(self, item: Any) -> None:
         self.sequence.append(item)
-    def extend(self, item):
+    def extend(self, item: Iterable) -> None:
         self.sequence.extend(item)
-    def index(self, value):
+    def count(self, value: Any) -> int:
+        return self.sequence.count(value)
+    def index(self, value: Any) -> int:
         return self.sequence.index(value)
-    def clear(self):
+    def clear(self) -> None:
         self.sequence.clear()
-    def copy(self):
-        return self.sequence.copy()
-    def insert(self, index, object):
-        print("PSEQ values are read-only!")
-    def pop(self, index=-1):
-        print("PSEQ values are read-only!")
-    def remove(self, value):
-        print("PSEQ values are read-only!")
-        
-class Subroutine:
-    """The subroutine interface."""
-    def __init__(self):
-        self.instructions = []
-    def add_instruction(self, namespace, instruction):
-        self.instructions.append(instruction)
-        _parse_subr_func_rts(namespace, instruction)
-    def run(self, namespace):
-        for instruction in self.instructions:
-            namespace['executing_subr'] = True
-            parse(namespace, instruction)
-            
-class Function:
-    """The function interface."""
-    def __init__(self, argdefs):
-        self.instructions = []
-        self.argdefs = argdefs
-    def report_argdefs_validity(self):
-        argdefs_valid = True
-        for argdef in self.argdefs:
-            if not argdef.startswith('@') or not all(char in set(string.hexdigits) for char in argdef.removeprefix('@')):
-                print("Arguments must start with '@' and contain only hexadecimal characters.")
-                argdefs_valid = False
-        return argdefs_valid
-    def add_instruction(self, namespace, instruction):
-        self.instructions.append(instruction)
-        _parse_end(namespace, instruction)
-    def run(self, namespace, arguments):
-        namespace_copy = namespace
-        namespace = {
-            'vars': {self.argdefs[i]: arguments[i] for i in range(len(self.argdefs))},
-            '_vars': namespace['vars'],
-            'killed_vars': [],
-            'kill_length': 0,
-            'stack': namespace['stack'],
-            'stack_pointer': namespace['stack_pointer'],
-            'if_stack': namespace['if_stack'],
-            'executing_subr': namespace['executing_subr'],
-            'executing_func': True
-        }
-        returns = []
-        for instruction in self.instructions:
-            namespace['executing_func'] = True
-            returns.append(_parse_give_take_sync(namespace, namespace_copy, instruction))
-            parse(namespace, instruction)
-            for var in namespace['vars']:
-                if not var.startswith('@') or not all(char in set(string.hexdigits) for char in var.removeprefix('@')):
-                    del namespace['vars']
-                    print("Local variables must start with '@' and contain only hexadecimal characters.")
-        for val in returns:
-            if val is None:
-                returns.remove(val)
-        if len(returns) > 0:
-            return returns[-1]
+    def copy(self) -> Self:
+        return PermaSequence(*self.sequence.copy())
 
-def get_input(prompt):
-    """Grab input from the user.
-    
-    Arguments:
-    prompt -- the prompt to display
-    """
-    user_input = input(prompt).lstrip()
-    return user_input
-    
-def get_bool(value):
-    """Get a boolean from a !-prefixed string.
-    
-    Arguments:
-    value -- the string to convert
-    """
-    return bool(int(str(value).removeprefix('!')))
-    
-def _parse_subr_func_rts(namespace, instruction):
-    """Parse an mlmcr instruction (only checking for a SUBR, a FUNC or a RTS).
-    
-    Arguments:
-    namespace -- the namespace
-    instruction -- the instruction to parse
-    """
-    vars = namespace['vars']
-    opcode = instruction.upper()
-    opcode = opcode.split(' ', 1)[0]
-    args = instruction.split(',')
-    args[0] = args[0].split(' ', 1)
-    args = args[0] + args[1:]
-    args.pop(0)
-    for index, arg in enumerate(args):
-        args[index] = arg.lstrip()
-        if args[index].startswith('$') or args[index].startswith('@'):
-            args[index] = args[index].upper()
-    if opcode == 'SUBR':
-        if len(args) == 1:
-            vars[args[0]] = Subroutine()
-            namespace['stack'].append(vars[args[0]])
-            namespace['stack_pointer'] += 1
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'FUNC':
-        if len(args) >= 1:
-            vars[args[0]] = Function(args[1:])
-            argdefs_valid = vars[args[0]].report_argdefs_validity()
-            if not argdefs_valid:
-                del vars[args[0]]
-            else:
-                namespace['stack'].append(vars[args[0]])
-                namespace['stack_pointer'] += 1
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'RTS':
-        namespace['stack'][namespace['stack_pointer']].instructions.pop()
-        if namespace['stack_pointer'] > 0:
-            namespace['stack'].pop()
-            namespace['stack_pointer'] -= 1
-        else:
-            namespace['stack'][0] = None
-            namespace['stack_pointer'] = 0
-            
-def _parse_end(namespace, instruction):
-    """Parse an mlmcr instruction (only checking for a END).
-    
-    Arguments:
-    namespace -- the namespace
-    instruction -- the instruction to parse
-    """
-    opcode = instruction.upper()
-    opcode = opcode.split(' ', 1)[0]
-    if opcode == 'END':
-        namespace['stack'][namespace['stack_pointer']].instructions.pop()
-        if namespace['stack_pointer'] > 0:
-            namespace['stack'].pop()
-            namespace['stack_pointer'] -= 1
-        else:
-            namespace['stack'][0] = None
-            namespace['stack_pointer'] = 0
-            
-def _parse_give_take_sync(namespace, namespace_copy, instruction):
-    """Parse an mlmcr instruction (only checking for a GIVE, a TAKE or a SYNC).
-    
-    Arguments:
-    namespace -- the namespace
-    namespace_copy -- the reference to the original namespace
-    instruction -- the instruction to parse
-    """
-    vars = namespace['vars']
-    opcode = instruction.upper()
-    opcode = opcode.split(' ', 1)[0]
-    args = instruction.split(',')
-    args[0] = args[0].split(' ', 1)
-    args = args[0] + args[1:]
-    args.pop(0)
-    for index, arg in enumerate(args):
-        args[index] = arg.lstrip()
-        if args[index].startswith('$') or args[index].startswith('@'):
-            args[index] = args[index].upper()
-    if opcode == 'GIVE':
-        if len(args) == 1:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            elif args[0].startswith('&'):
-                args[0] = args[0].removeprefix('&')
-            elif args[0].startswith('!'):
-                args[0] = get_bool(args[0])
-            else:
-                args[0] = vars[args[0]]
-            return args[0]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'TAKE':
-        if len(args) == 2:
-            if isinstance(namespace['_vars'][args[0]], Subroutine):  # Change $ for @ in subroutines
-                for inst_index, inst in enumerate(namespace['_vars'][args[0]].instructions):
-                    inst_list = list(inst)
-                    found_amperstand = False
-                    for i, char in enumerate(inst_list):
-                        if char == '&':
-                            found_amperstand = True
-                        elif char == ',' and found_amperstand:
-                            found_amperstand = False
-                        elif char == '$' and not found_amperstand:
-                            inst_list[i] = '@'
-                    namespace['_vars'][args[0]].instructions[inst_index] = ''.join(inst_list)
-            vars[args[1]] = namespace['_vars'][args[0]]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'SYNC':
-        if len(args) == 2:
-            namespace_copy['vars'][args[1]] = vars[args[0]]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    
-def parse(namespace, instruction):
-    """Parse an mlmcr instruction.
-    
-    Arguments:
-    namespace -- a dict representing the namespace
-                 It must contain the following items:
-                 - 'vars': a dict where every key represents a variable name and every item its value
-                 - 'killed_vars': a list containing all the values in the kill list
-                 - 'kill_length': an int representing the maximum length of the kill list
-                 - 'stack': a list representing the declaration stack
-                 - 'stack_pointer': an int representing the stack index in which instructions are being processed
-                 - 'executing_subr': a bool representing whether a subroutine is being executed
-                 - 'executing_func': a bool representing whether a function is being executed
-    instruction -- the instruction to parse
-    """
-    vars = namespace['vars']
-    killed_vars = namespace['killed_vars']
-    kill_length = namespace['kill_length']
-    opcode = instruction.upper()
-    opcode = opcode.split(' ', 1)[0]
-    args = instruction.split(',')
-    args[0] = args[0].split(' ', 1)
-    args = args[0] + args[1:]
-    args.pop(0)
-    for index, arg in enumerate(args):
-        args[index] = arg.lstrip()
-        if args[index].startswith('$') or args[index].startswith('@'):
-            args[index] = args[index].upper()
-    if opcode.startswith(';'):
-        pass  # Starting a line with ; allows for comments as elif is used below
-    elif opcode == 'PUT':
-        if len(args) == 2:
-            if args[0].startswith('$'):
-                vars[args[1]] = vars[args[0]]
-            elif args[0].startswith('##'):
-                vars[args[1]] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                vars[args[1]] = int(args[0].removeprefix('#'))
-            elif args[0].startswith('&'):
-                vars[args[1]] = args[0].removeprefix('&')
-            elif args[0].startswith('!'):
-                vars[args[1]] = get_bool(args[0])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'DEL':
-        if len(args) == 1:
-            del vars[args[0]]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'NEW':
-        if len(args) >= 2:
-            obj = type(vars[args[0]])
-            constructor_args = args[2:]
-            for i, arg in enumerate(constructor_args):
-                if arg.startswith('##'):
-                    constructor_args[i] = float(arg.removeprefix('##'))
-                elif arg.startswith('#'):
-                    constructor_args[i] = int(arg.removeprefix('#'))
-                elif arg.startswith('&'):
-                    constructor_args[i] = arg.removeprefix('&')
-                elif arg.startswith('!'):
-                    constructor_args[i] = get_bool(arg)
-                else:
-                    constructor_args[i] = vars[arg]
-            vars[args[1]] = obj(*constructor_args)
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'SWAP':
-        if len(args) == 2:
-            vars[args[0]], vars[args[1]] = vars[args[1]], vars[args[0]]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'KILL':
-        if not namespace['executing_func']:
-            if len(args) == 1:
-                killed_vars.append(vars[args[0]])
-                if len(killed_vars) > kill_length:
-                    killed_vars.pop(0)
-                del vars[args[0]]
-            elif len(args) == 2:
-                killed_vars.append(vars[args[0]])
-                if len(killed_vars) > kill_length:
-                    killed_vars.pop(0)
-                del vars[args[0]]
-                vars[args[1]] = len(killed_vars) - 1
-            else:
-                print(f"Wrong arguments in {instruction}")
-    elif opcode == 'WAKE':
-        if not namespace['executing_func']:
-            if len(args) == 2:
-                if args[0].startswith('#'):
-                    args[0] = int(args[0].removeprefix('##').removeprefix('#'))
-                else:
-                    args[0] = vars[args[0]]
-                vars[args[1]] = killed_vars[args[0]]
-                killed_vars.pop(args[0])
-            else:
-                print(f"Wrong arguments in {instruction}")
-    elif opcode == 'KSET':
-        if not namespace['executing_func']:
-            if len(args) == 1:
-                if args[0].startswith('#'):
-                    args[0] = int(args[0].removeprefix('##').removeprefix('#'))
-                else:
-                    args[0] = vars[args[0]]
-                if 0 <= args[0] <= 65536:
-                    namespace['kill_length'] = args[0]
-                elif args[0] < 0:
-                    namespace['kill_length'] = 0
-                else:
-                    namespace['kill_length'] = 65536
-            else:
-                print(f"Wrong arguments in {instruction}")
-    elif opcode == 'KGET':
-        if not namespace['executing_func']:
-            if len(args) == 1:
-                vars[args[0]] = len(killed_vars) - 1
-            else:
-                print(f"Wrong arguments in {instruction}")
-    elif opcode == 'HALT':
-        if len(args) == 1:
-            if args[0].startswith('#'):
-                args[0] = float(args[0].removeprefix('##').removeprefix('#'))
-            else:
-                args[0] = vars[args[0]]
-            time.sleep(args[0])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'SUBR':
-        if not (namespace['executing_subr'] or namespace['executing_func']):
-            if len(args) == 1:
-                vars[args[0]] = Subroutine()
-                namespace['stack'][0] = vars[args[0]]
-            else:
-                print(f"Wrong arguments in {instruction}")
-    elif opcode == 'JUMP':
-        if len(args) == 1:
-            if isinstance(vars[args[0]], Subroutine):
-                vars[args[0]].run(namespace)
-                namespace['executing_subr'] = False
-            else:
-                print(f"{args[0]} is not a subroutine.")
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'FUNC':
-        if not (namespace['executing_func'] or namespace['executing_subr']):
-            if len(args) >= 1:
-                vars[args[0]] = Function(args[1:])
-                argdefs_valid = vars[args[0]].report_argdefs_validity()
-                if not argdefs_valid:
-                    del vars[args[0]]
-                else:
-                    namespace['stack'][0] = vars[args[0]]
-            else:
-                print(f"Wrong arguments in {instruction}")
-    elif opcode == 'CALL':
-        if len(args) >= 1:
-            if isinstance(vars[args[0]], Function):
-                if len(args[1:-1]) == len(vars[args[0]].argdefs):
-                    for i, arg in enumerate(args[1:-1]):
-                        i += 1  # This accounts for the fact that we are excluding args[0]
-                        if arg.startswith('##'):
-                            args[i] = float(arg.removeprefix('##'))
-                        elif arg.startswith('#'):
-                            args[i] = int(arg.removeprefix('#'))
-                        elif arg.startswith('&'):
-                            args[i] = arg.removeprefix('&')
-                        elif arg.startswith('!'):
-                            args[i] = get_bool(arg)
-                        else:
-                            args[i] = vars[args[i]]
-                    vars[args[-1]] = vars[args[0]].run(namespace, args[1:-1])
-                    namespace['executing_func'] = False
-                else:  # This simulates an exception
-                    print(f"Function arguments do not match definitions in {args[0]}")
-                    namespace['stack'] = [None]
-                    namespace['stack_pointer'] = 0
-                    namespace['executing_subr'] = False
-                    namespace['executing_func'] = False
-            else:
-                print(f"{args[0]} is not a function")
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'SEQ':
-        vars[args[0]] = []
-        if len(args) >= 2:
-            for arg in args[1:]:
-                if arg.startswith('##'):
-                    arg = float(arg.removeprefix('##'))
-                elif arg.startswith('#'):
-                    arg = int(arg.removeprefix('#'))
-                elif arg.startswith('&'):
-                    arg = arg.removeprefix('&')
-                elif arg.startswith('!'):
-                    arg = get_bool(arg)
-                else:
-                    arg = vars[arg]
-                vars[args[0]].append(arg)
-    elif opcode == 'PSEQ':
-        vars[args[0]] = PermaSequence()
-        if len(args) >= 2:
-            for arg in args[1:]:
-                if arg.startswith('##'):
-                    arg = float(arg.removeprefix('##'))
-                elif arg.startswith('#'):
-                    arg = int(arg.removeprefix('#'))
-                elif arg.startswith('&'):
-                    arg = arg.removeprefix('&')
-                elif arg.startswith('!'):
-                    arg = get_bool(arg)
-                else:
-                    arg = vars[arg]
-                vars[args[0]].append(arg)
-    elif opcode == 'PACK':
-        temp_list = []
-        if len(args) >= 2:
-            for arg in args[1:]:
-                if arg.startswith('##'):
-                    arg = float(arg.removeprefix('##'))
-                elif arg.startswith('#'):
-                    arg = int(arg.removeprefix('#'))
-                elif arg.startswith('&'):
-                    arg = arg.removeprefix('&')
-                elif arg.startswith('!'):
-                    arg = get_bool(arg)
-                else:
-                    arg = vars[arg]
-                temp_list.append(arg)
-        vars[args[0]] = tuple(temp_list)
-    elif opcode == 'MAP':
-        vars[args[0]] = {}
-        if len(args) >= 2:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'ADD':
-        if args[0].startswith('##'):
-            sum = float(args[0].removeprefix('##'))
-        elif args[0].startswith('#'):
-            sum = int(args[0].removeprefix('#'))
-        else:
-            sum = vars[args[0]]
-        for arg in args[1:-1]:
-            if arg.startswith('##'):
-                sum += float(arg.removeprefix('##'))
-            elif arg.startswith('#'):
-                sum += int(arg.removeprefix('#'))
-            else:
-                sum += vars[arg]
-        vars[args[-1:][0]] = sum
-    elif opcode == 'SUB':
-        if args[0].startswith('##'):
-            diff = float(args[0].removeprefix('##'))
-        elif args[0].startswith('#'):
-            diff = int(args[0].removeprefix('#'))
-        else:
-            diff = vars[args[0]]
-        for arg in args[1:-1]:
-            if arg.startswith('##'):
-                diff -= float(arg.removeprefix('##'))
-            elif arg.startswith('#'):
-                diff -= int(arg.removeprefix('#'))
-            else:
-                diff -= vars[arg]
-        vars[args[-1:][0]] = diff
-    elif opcode == 'MUL':
-        if args[0].startswith('##'):
-            prod = float(args[0].removeprefix('##'))
-        elif args[0].startswith('#'):
-            prod = int(args[0].removeprefix('#'))
-        else:
-            prod = vars[args[0]]
-        for arg in args[1:-1]:
-            if arg.startswith('##'):
-                prod *= float(arg.removeprefix('##'))
-            elif arg.startswith('#'):
-                prod *= int(arg.removeprefix('#'))
-            else:
-                prod *= vars[arg]
-        vars[args[-1:][0]] = prod
-    elif opcode == 'DIV':
-        if args[0].startswith('##'):
-            quot = float(args[0].removeprefix('##'))
-        elif args[0].startswith('#'):
-            quot = int(args[0].removeprefix('#'))
-        else:
-            quot = vars[args[0]]
-        for arg in args[1:-1]:
-            if arg.startswith('##'):
-                quot /= float(arg.removeprefix('##'))
-            elif arg.startswith('#'):
-                quot /= int(arg.removeprefix('#'))
-            else:
-                quot /= vars[arg]
-        vars[args[-1:][0]] = quot
-    elif opcode == 'FDIV':
-        if args[0].startswith('##'):
-            quot = float(args[0].removeprefix('##'))
-        elif args[0].startswith('#'):
-            quot = int(args[0].removeprefix('#'))
-        else:
-            quot = vars[args[0]]
-        for arg in args[1:-1]:
-            if arg.startswith('##'):
-                quot //= float(arg.removeprefix('##'))
-            elif arg.startswith('#'):
-                quot //= int(arg.removeprefix('#'))
-            else:
-                quot //= vars[arg]
-        vars[args[-1:][0]] = quot
-    elif opcode == 'MOD':
-        if args[0].startswith('##'):
-            mod = float(args[0].removeprefix('##'))
-        elif args[0].startswith('#'):
-            mod = int(args[0].removeprefix('#'))
-        else:
-            mod = vars[args[0]]
-        for arg in args[1:-1]:
-            if arg.startswith('##'):
-                mod %= float(arg.removeprefix('##'))
-            elif arg.startswith('#'):
-                mod %= int(arg.removeprefix('#'))
-            else:
-                mod %= vars[arg]
-        vars[args[-1:][0]] = mod
-    elif opcode == 'POW':
-        if args[0].startswith('##'):
-            pow = float(args[0].removeprefix('##'))
-        elif args[0].startswith('#'):
-            pow = int(args[0].removeprefix('#'))
-        else:
-            pow = vars[args[0]]
-        for arg in args[1:-1]:
-            if arg.startswith('##'):
-                pow **= float(arg.removeprefix('##'))
-            elif arg.startswith('#'):
-                pow **= int(arg.removeprefix('#'))
-            else:
-                pow **= vars[arg]
-        vars[args[-1:][0]] = pow
-    elif opcode == 'ABS':
-        if len(args) == 2:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            else:
-                args[0] = vars[args[0]]
-            vars[args[1]] = abs(args[0])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'SQRT':
-        if len(args) == 2:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            else:
-                args[0] = vars[args[0]]
-            vars[args[1]] = math.sqrt(args[0])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'CBRT':
-        if len(args) == 2:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            else:
-                args[0] = vars[args[0]]
-            vars[args[1]] = math.cbrt(args[0])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'INC':
-        if len(args) == 1:
-            vars[args[0]] += 1
-        elif len(args) == 2:
-            vars[args[0]] += int(args[1].removeprefix('##').removeprefix('#'))
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'DEC':
-        if len(args) == 1:
-            vars[args[0]] -= 1
-        elif len(args) == 2:
-            vars[args[0]] -= int(args[1].removeprefix('##').removeprefix('#'))
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'PUSH':
-        for arg in args:
-            if arg.startswith(('#', '##', '&')):
-                arg = arg.removeprefix('##').removeprefix('#').removeprefix('&')
-            else:
-                arg = vars[arg]
-            print(arg, end='')
-        print()
-    elif opcode == 'PULL':
-        if len(args) == 1:
-            vars[args[0]] = input()
-        elif len(args) == 2:
-            if args[1].startswith(('#', '##', '&')):
-                args[1] = args[1].removeprefix('##').removeprefix('#').removeprefix('&')
-            else:
-                args[1] = vars[args[1]]
-            vars[args[0]] = input(args[1])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'INT':
-        if len(args) == 1:
-            vars[args[0]] = int(vars[args[0]])
-        elif len(args) == 2:
-            vars[args[1]] = int(vars[args[0]])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'FLPT':
-        if len(args) == 1:
-            vars[args[0]] = float(vars[args[0]])
-        elif len(args) == 2:
-            vars[args[1]] = float(vars[args[0]])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'STR':
-        if len(args) == 1:
-            vars[args[0]] = str(vars[args[0]])
-        elif len(args) == 2:
-            vars[args[1]] = str(vars[args[0]])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'BOOL':
-        var = get_bool(vars[args[0]])
-        if len(args) == 1:
-            vars[args[0]] = var
-        elif len(args) == 2:
-            vars[args[1]] = var
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'NULL':
-        if len(args) == 1:
-            vars[args[0]] = None
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'TYPE':
-        if len(args) == 2:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            elif args[0].startswith('&'):
-                args[0] = args[0].removeprefix('&')
-            elif args[0].startswith('!'):
-                args[0] = get_bool(args[0])
-            else:
-                args[0] = vars[args[0]]
-            if isinstance(args[0], int):
-                t = "INT"
-            elif isinstance(args[0], float):
-                t = "FLPT"
-            elif isinstance(args[0], str):
-                t = "STR"
-            elif isinstance(args[0], bool):
-                t = "BOOL"
-            elif args[0] is None:
-                t = "NULL"
-            elif isinstance(args[0], list):
-                t = "SEQ"
-            elif isinstance(args[0], PermaSequence):
-                t = "PSEQ"
-            elif isinstance(args[0], tuple):
-                t = "PACK"
-            elif isinstance(args[0], dict):
-                t = "MAP"
-            elif isinstance(args[0], Subroutine):
-                t = "SUBR"
-            elif isinstance(args[0], Function):
-                t = "FUNC"
-            else:
-                t = "UNKNOWN"
-            vars[args[1]] = t
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'LINK':
-        if len(args) == 3:
-            if args[0].startswith('&') and args[1].startswith('&'):
-                vars[args[2]] = args[0].removeprefix('&') + args[1].removeprefix('&')
-            elif args[0].startswith('&') and not args[1].startswith('&'):
-                vars[args[2]] = args[0].removeprefix('&') + vars[args[1]]
-            elif not args[0].startswith('&') and args[1].startswith('&'):
-                vars[args[2]] = vars[args[0]] + args[1].removeprefix('&')
-            else:
-                vars[args[2]] = vars[args[0]] + vars[args[1]]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'FSTR':
-        if len(args) == 2:
-            vars[args[1]] = vars[args[0]].split()
-        elif len(args) == 3:
-            if args[2].startswith('&'):
-                vars[args[1]] = vars[args[0]].split(args[2].removeprefix('&'))
-            else:
-                vars[args[1]] = vars[args[0]].split(vars[args[2]])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'TSTR':
-        if len(args) == 2:
-            vars[args[1]] = ' '.join(vars[args[0]])
-        elif len(args) == 3:
-            if args[2].startswith('&'):
-                vars[args[1]] = args[2].removeprefix('&').join(vars[args[0]])
-            else:
-                vars[args[1]] = vars[args[2]].join(vars[args[0]])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'MIN':
-        if len(args) >= 2:
-            if len(args) == 2 and isinstance(vars[args[0]], (list, PermaSequence, tuple, dict)):
-                vars[args[1]] = min(vars[args[0]])
-            else:
-                for i, arg in enumerate(args[:-1]):
-                    if arg.startswith('##'):
-                        args[i] = float(arg.removeprefix('##'))
-                    elif arg.startswith('#'):
-                        args[i] = int(arg.removeprefix('#'))
-                    elif arg.startswith('&'):
-                        args[i] = arg.removeprefix('&')
-                    elif arg.startswith('!'):
-                        args[i] = get_bool(arg)
-                    else:
-                        args[i] = vars[arg]
-                vars[args[-1]] = min(args[:-1])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'MAX':
-        if len(args) >= 2:
-            if len(args) == 2 and isinstance(vars[args[0]], (list, PermaSequence, tuple, dict)):
-                vars[args[1]] = max(vars[args[0]])
-            else:
-                for i, arg in enumerate(args[:-1]):
-                    if arg.startswith('##'):
-                        args[i] = float(arg.removeprefix('##'))
-                    elif arg.startswith('#'):
-                        args[i] = int(arg.removeprefix('#'))
-                    elif arg.startswith('&'):
-                        args[i] = arg.removeprefix('&')
-                    elif arg.startswith('!'):
-                        args[i] = get_bool(arg)
-                    else:
-                        args[i] = vars[arg]
-                vars[args[-1]] = max(args[:-1])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'JOIN':
-        if len(args) >= 2:
-            for arg in args[1:]:
-                if arg.startswith('##'):
-                    arg = float(arg.removeprefix('##'))
-                    vars[args[0]].append(arg)
-                elif arg.startswith('#'):
-                    arg = int(arg.removeprefix('#'))
-                    vars[args[0]].append(arg)
-                elif arg.startswith('&'):
-                    arg = arg.removeprefix('&')
-                    vars[args[0]].append(arg)
-                elif arg.startswith('!'):
-                    arg = get_bool(arg)
-                else:
-                    arg = vars[arg]
-                    if isinstance(arg, (list, PermaSequence, tuple, dict)):
-                        vars[args[0]].extend(arg)
-                    else:
-                        vars[args[0]].append(arg)
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'NEST':
-        if len(args) >= 2:
-            for arg in args[1:]:
-                if isinstance(vars[arg], (list, PermaSequence, tuple, dict)):
-                    vars[args[0]].append(vars[arg])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'POP':
-        if len(args) == 2:
-            if args[1].startswith('#'):
-                i = int(args[1].removeprefix('##').removeprefix('#'))
-            else:
-                i = vars[args[1]]
-            vars[args[0]].pop(i)
-        elif len(args) == 3:
-            if args[1].startswith('#'):
-                i = int(args[1].removeprefix('##').removeprefix('#'))
-            else:
-                i = vars[args[1]]
-            vars[args[2]] = vars[args[0]].pop(i)
-    elif opcode == 'REM':
-        if len(args) == 2:
-            if args[1].startswith('##'):
-                args[1] = float(args[1].removeprefix('##'))
-            elif args[1].startswith('#'):
-                args[1] = int(args[1].removeprefix('#'))
-            elif args[1].startswith('&'):
-                args[1] = args[2].removeprefix('&')
-            elif args[1].startswith('!'):
-                args[1] = get_bool(args[1])
-            else:
-                args[2] = vars[args[2]]
-            vars[args[0]].remove(args[1])
-    elif opcode == 'GETI':
-        if len(args) == 3:
-            if args[1].startswith('#'):  # This handles both ints and floats
-                v = int(args[1].removeprefix('##').removeprefix('#'))
-            elif args[1].startswith('&'):
-                v = args[1].removeprefix('&')
-            elif args[1].startswith('!'):
-                v = get_bool(args[1])
-            else:
-                v = vars[args[1]]
-            vars[args[2]] = vars[args[0]].index(v)
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'GET':
-        if len(args) == 3:
-            if args[1].startswith('#'):  # This handles both ints and floats
-                i = int(args[1].removeprefix('##').removeprefix('#'))
-            else:
-                i = vars[args[1]]
-            vars[args[2]] = vars[args[0]][i]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'REST':
-        if len(args) == 3:
-            if args[1].startswith(('##', '#')):
-                args[1] = int(args[1].removeprefix('##').removeprefix('#'))
-            else:
-                args[1] = vars[args[1]]
-            vars[args[2]] = vars[args[0]][args[1]:]
-        elif len(args) == 4:
-            if args[1].startswith(('##', '#')):
-                args[1] = int(args[1].removeprefix('##').removeprefix('#'))
-            else:
-                args[1] = vars[args[1]]
-            if args[2].startswith(('##', '#')):
-                args[2] = int(args[2].removeprefix('##').removeprefix('#'))
-            else:
-                args[2] = vars[args[2]]
-            vars[args[3]] = vars[args[0]][args[1]:args[2]]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'SET':
-        if len(args) == 3:
-            if args[1].startswith('#'):  # This handles both ints and floats
-                i = int(args[1].removeprefix('##').removeprefix('#'))
-            else:
-                i = vars[args[1]]
-            if args[2].startswith('##'):
-                args[2] = float(args[2].removeprefix('##'))
-            elif args[2].startswith('#'):
-                args[2] = int(args[2].removeprefix('#'))
-            elif args[2].startswith('&'):
-                args[2] = args[2].removeprefix('&')
-            elif args[2].startswith('!'):
-                args[2] = get_bool(args[2])
-            else:
-                args[2] = vars[args[2]]
-            vars[args[0]].insert(i, args[2])
-    elif opcode == 'REPL':
-        if len(args) == 3:
-            if isinstance(vars[args[0]], (list, tuple)):
-                if args[1].startswith('#'):
-                    i = int(args[1].removeprefix('##').removeprefix('#'))
-                else:
-                    i = vars[args[1]]
-                if args[2].startswith('##'):
-                    args[2] = float(args[2].removeprefix('##'))
-                    vars[args[0]][i] = args[2]
-                elif args[2].startswith('#'):
-                    args[2] = int(args[2].removeprefix('#'))
-                    vars[args[0]][i] = args[2]
-                elif args[2].startswith('&'):
-                    args[2] = args[2].removeprefix('&')
-                    vars[args[0]][i] = args[2]
-                else:
-                    args[2] = vars[args[2]]
-                    vars[args[0]][i] = args[2]
-            elif isinstance(vars[args[0]], PermaSequence):
-                print("PSEQ values are read-only!")
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'MSET':
-        if len(args) == 3:
-            if args[1].startswith('##'):
-                args[1] = float(args[1].removeprefix('##'))
-            elif args[1].startswith('#'):
-                args[1] = int(args[1].removeprefix('#'))
-            elif args[1].startswith('&'):
-                args[1] = args[1].removeprefix('&')
-            elif args[1].startswith('!'):
-                args[1] = get_bool(args[1])
-            else:
-                args[1] = vars[args[1]]
-            if args[2].startswith('##'):
-                args[2] = float(args[2].removeprefix('##'))
-            elif args[2].startswith('#'):
-                args[2] = int(args[2].removeprefix('#'))
-            elif args[2].startswith('&'):
-                args[2] = args[2].removeprefix('&')
-            elif args[2].startswith('!'):
-                args[2] = get_bool(args[2])
-            else:
-                args[2] = vars[args[2]]
-            vars[args[0]][args[1]] = args[2]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'MGET':
-        if len(args) == 3:
-            if args[1].startswith('##'):
-                args[1] = float(args[1].removeprefix('##'))
-            elif args[1].startswith('#'):
-                args[1] = int(args[1].removeprefix('#'))
-            elif args[1].startswith('&'):
-                args[1] = args[1].removeprefix('&')
-            elif args[1].startswith('!'):
-                args[1] = get_bool(args[1])
-            else:
-                args[1] = vars[args[1]]
-            vars[args[2]] = vars[args[0]][args[1]]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'MPOP':
-        if len(args) == 2:
-            if args[1].startswith('##'):
-                args[1] = float(args[1].removeprefix('##'))
-            elif args[1].startswith('#'):
-                args[1] = int(args[1].removeprefix('#'))
-            elif args[1].startswith('&'):
-                args[1] = args[1].removeprefix('&')
-            elif args[1].startswith('!'):
-                args[1] = get_bool(args[1])
-            else:
-                args[1] = vars[args[1]]
-            vars[args[0]].pop(args[1])
-        elif len(args) == 3:
-            if args[1].startswith('##'):
-                args[1] = float(args[1].removeprefix('##'))
-            elif args[1].startswith('#'):
-                args[1] = int(args[1].removeprefix('#'))
-            elif args[1].startswith('&'):
-                args[1] = args[1].removeprefix('&')
-            elif args[1].startswith('!'):
-                args[1] = get_bool(args[1])
-            else:
-                args[1] = vars[args[1]]
-            vars[args[2]] = vars[args[0]].pop(args[1])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'MPLI':
-        if len(args) == 2:
-            vars[args[1]] = vars[args[0]].popitem()
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'GRAB':
-        if len(args) == 2:
-            vars[args[1]] = tuple(vars[args[0]].items())
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'KEYS':
-        if len(args) == 2:
-            vars[args[1]] = tuple(vars[args[0]].keys())
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'VALS':
-        if len(args) == 2:
-            vars[args[1]] = tuple(vars[args[0]].values())
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'LEN':
-        if len(args) == 2:
-            vars[args[1]] = len(vars[args[0]])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'WIPE':
-        if len(args) == 1:
-            vars[args[0]].clear()
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'COPY':
-        if len(args) == 2:
-            vars[args[1]] = vars[args[0]].copy()
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'EQ':
-        if len(args) == 3:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            elif args[0].startswith('&'):
-                args[0] = args[0].removeprefix('&')
-            elif args[0].startswith('!'):
-                args[0] = get_bool(args[0])
-            else:
-                args[0] = vars[args[0]]
-            if args[1].startswith('##'):
-                args[1] = float(args[1].removeprefix('##'))
-            elif args[1].startswith('#'):
-                args[1] = int(args[1].removeprefix('#'))
-            elif args[1].startswith('&'):
-                args[1] = args[1].removeprefix('&')
-            elif args[1].startswith('!'):
-                args[1] = get_bool(args[1])
-            else:
-                args[1] = vars[args[1]]
-            vars[args[2]] = args[0] == args[1]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'NE':
-        if len(args) == 3:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            elif args[0].startswith('&'):
-                args[0] = args[0].removeprefix('&')
-            elif args[0].startswith('!'):
-                args[0] = get_bool(args[0])
-            else:
-                args[0] = vars[args[0]]
-            if args[1].startswith('##'):
-                args[1] = float(args[1].removeprefix('##'))
-            elif args[1].startswith('#'):
-                args[1] = int(args[1].removeprefix('#'))
-            elif args[1].startswith('&'):
-                args[1] = args[1].removeprefix('&')
-            elif args[1].startswith('!'):
-                args[1] = get_bool(args[1])
-            else:
-                args[1] = vars[args[1]]
-            vars[args[2]] = args[0] != args[1]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'GT':
-        if len(args) == 3:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            elif args[0].startswith('&'):
-                args[0] = args[0].removeprefix('&')
-            elif args[0].startswith('!'):
-                args[0] = get_bool(args[0])
-            else:
-                args[0] = vars[args[0]]
-            if args[1].startswith('##'):
-                args[1] = float(args[1].removeprefix('##'))
-            elif args[1].startswith('#'):
-                args[1] = int(args[1].removeprefix('#'))
-            elif args[1].startswith('&'):
-                args[1] = args[1].removeprefix('&')
-            elif args[1].startswith('!'):
-                args[1] = get_bool(args[1])
-            else:
-                args[1] = vars[args[1]]
-            vars[args[2]] = args[0] > args[1]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'LT':
-        if len(args) == 3:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            elif args[0].startswith('&'):
-                args[0] = args[0].removeprefix('&')
-            elif args[0].startswith('!'):
-                args[0] = get_bool(args[0])
-            else:
-                args[0] = vars[args[0]]
-            if args[1].startswith('##'):
-                args[1] = float(args[1].removeprefix('##'))
-            elif args[1].startswith('#'):
-                args[1] = int(args[1].removeprefix('#'))
-            elif args[1].startswith('&'):
-                args[1] = args[1].removeprefix('&')
-            elif args[1].startswith('!'):
-                args[1] = get_bool(args[1])
-            else:
-                args[1] = vars[args[1]]
-            vars[args[2]] = args[0] < args[1]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'GE':
-        if len(args) == 3:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            elif args[0].startswith('&'):
-                args[0] = args[0].removeprefix('&')
-            elif args[0].startswith('!'):
-                args[0] = get_bool(args[0])
-            else:
-                args[0] = vars[args[0]]
-            if args[1].startswith('##'):
-                args[1] = float(args[1].removeprefix('##'))
-            elif args[1].startswith('#'):
-                args[1] = int(args[1].removeprefix('#'))
-            elif args[1].startswith('&'):
-                args[1] = args[1].removeprefix('&')
-            elif args[1].startswith('!'):
-                args[1] = get_bool(args[1])
-            else:
-                args[1] = vars[args[1]]
-            vars[args[2]] = args[0] >= args[1]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'LE':
-        if len(args) == 3:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            elif args[0].startswith('&'):
-                args[0] = args[0].removeprefix('&')
-            elif args[0].startswith('!'):
-                args[0] = get_bool(args[0])
-            else:
-                args[0] = vars[args[0]]
-            if args[1].startswith('##'):
-                args[1] = float(args[1].removeprefix('##'))
-            elif args[1].startswith('#'):
-                args[1] = int(args[1].removeprefix('#'))
-            elif args[1].startswith('&'):
-                args[1] = args[1].removeprefix('&')
-            elif args[1].startswith('!'):
-                args[1] = get_bool(args[1])
-            else:
-                args[1] = vars[args[1]]
-            vars[args[2]] = args[0] <= args[1]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'AND':
-        if len(args) == 3:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            elif args[0].startswith('&'):
-                args[0] = args[0].removeprefix('&')
-            elif args[0].startswith('!'):
-                args[0] = get_bool(args[0])
-            else:
-                args[0] = vars[args[0]]
-            if args[1].startswith('##'):
-                args[1] = float(args[1].removeprefix('##'))
-            elif args[1].startswith('#'):
-                args[1] = int(args[1].removeprefix('#'))
-            elif args[1].startswith('&'):
-                args[1] = args[1].removeprefix('&')
-            elif args[1].startswith('!'):
-                args[1] = get_bool(args[1])
-            else:
-                args[1] = vars[args[1]]
-            vars[args[2]] = args[0] and args[1]
-    elif opcode == 'OR':
-        if len(args) == 3:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            elif args[0].startswith('&'):
-                args[0] = args[0].removeprefix('&')
-            elif args[0].startswith('!'):
-                args[0] = get_bool(args[0])
-            else:
-                args[0] = vars[args[0]]
-            if args[1].startswith('##'):
-                args[1] = float(args[1].removeprefix('##'))
-            elif args[1].startswith('#'):
-                args[1] = int(args[1].removeprefix('#'))
-            elif args[1].startswith('&'):
-                args[1] = args[1].removeprefix('&')
-            elif args[1].startswith('!'):
-                args[1] = get_bool(args[1])
-            else:
-                args[1] = vars[args[1]]
-            vars[args[2]] = args[0] or args[1]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'NOT':
-        if len(args) == 2:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            elif args[0].startswith('&'):
-                args[0] = args[0].removeprefix('&')
-            elif args[0].startswith('!'):
-                args[0] = get_bool(args[0])
-            else:
-                args[0] = vars[args[0]]
-            vars[args[1]] = not args[0]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'IS':
-        if len(args) == 3:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            elif args[0].startswith('&'):
-                args[0] = args[0].removeprefix('&')
-            elif args[0].startswith('!'):
-                args[0] = get_bool(args[0])
-            else:
-                args[0] = vars[args[0]]
-            if args[1].startswith('##'):
-                args[1] = float(args[1].removeprefix('##'))
-            elif args[1].startswith('#'):
-                args[1] = int(args[1].removeprefix('#'))
-            elif args[1].startswith('&'):
-                args[1] = args[1].removeprefix('&')
-            elif args[1].startswith('!'):
-                args[1] = get_bool(args[1])
-            else:
-                args[1] = vars[args[1]]
-            vars[args[2]] = args[0] is args[1]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'IN':
-        if len(args) == 3:
-            if args[0].startswith('##'):
-                args[0] = float(args[0].removeprefix('##'))
-            elif args[0].startswith('#'):
-                args[0] = int(args[0].removeprefix('#'))
-            elif args[0].startswith('&'):
-                args[0] = args[0].removeprefix('&')
-            elif args[0].startswith('!'):
-                args[0] = get_bool(args[0])
-            else:
-                args[0] = vars[args[0]]
-            vars[args[2]] = args[0] in vars[args[1]]
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'LOOP':
-        if len(args) == 2:
-            if args[0].startswith(('##', '#')):
-                args[0] = int(args[0].removeprefix('##').removeprefix('#'))
-            else:
-                args[0] = vars[args[0]]
-            vars[args[1]] = range(args[0])
-        elif len(args) == 3:
-            if args[0].startswith(('##', '#')):
-                args[0] = int(args[0].removeprefix('##').removeprefix('#'))
-            else:
-                args[0] = vars[args[0]]
-            if args[1].startswith(('##', '#')):
-                args[1] = int(args[1].removeprefix('##').removeprefix('#'))
-            else:
-                args[1] = vars[args[1]]
-            vars[args[2]] = range(args[0], args[1])
-        elif len(args) == 4:
-            if args[0].startswith(('##', '#')):
-                args[0] = int(args[0].removeprefix('##').removeprefix('#'))
-            else:
-                args[0] = vars[args[0]]
-            if args[1].startswith(('##', '#')):
-                args[1] = int(args[1].removeprefix('##').removeprefix('#'))
-            else:
-                args = vars[args[1]]
-            if args[2].startswith(('##', '#')):
-                args[2] = int(args[2].removeprefix('##').removeprefix('#'))
-            else:
-                args[2] = vars[args[2]]
-            vars[args[3]] = range(args[0], args[1], args[2])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'IF':
-        if len(args) >= 2:
-            if len(namespace['if_stack']) > 0:
-                namespace['if_stack'].clear()  # Clear the if stack if it isn't already empty
-            if vars[args[0]]:
-                if isinstance(vars[args[1]], Subroutine):
-                    vars[args[1]].run(namespace)
-                    namespace['executing_subr'] = False
-                else:  # This allows for custom Python types to be run
-                    if len(args[2:-1]) == len(vars[args[1]].argdefs):
-                        for i, arg in enumerate(args[2:-1]):
-                            i += 2  # This accounts for the fact that we are excluding args[0] and args[1]
-                            if arg.startswith('##'):
-                                args[i] = float(arg.removeprefix('##'))
-                            elif arg.startswith('#'):
-                                args[i] = int(arg.removeprefix('#'))
-                            elif arg.startswith('&'):
-                                args[i] = arg.removeprefix('&')
-                            elif arg.startswith('!'):
-                                args[i] = get_bool(arg)
-                            else:
-                                args[i] = vars[args[i]]
-                        vars[args[-1]] = vars[args[1]].run(namespace, args[2:-1])
-                        namespace['executing_func'] = False
-                    else:  # This simulates an exception
-                        print(f"Function arguments do not match definitions in {args[1]}")
-                        namespace['stack'] = [None]
-                        namespace['stack_pointer'] = 0
-                        namespace['executing_subr'] = False
-                        namespace['executing_func'] = False
-                namespace['if_stack'].clear()
-            else:
-                namespace['if_stack'].append(vars[args[0]])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'ELIF':
-        if len(args) >= 2:
-            if len(namespace['if_stack']) > 0:
-                if not any(namespace['if_stack']) and vars[args[0]]:
-                    if isinstance(vars[args[1]], Subroutine):
-                        vars[args[1]].run(namespace)
-                        namespace['executing_subr'] = False
-                    else:  # This allows for custom Python types to be run
-                        if len(args[2:-1]) == len(vars[args[1]].argdefs):
-                            for i, arg in enumerate(args[2:-1]):
-                                i += 2  # This accounts for the fact that we are excluding args[0] and args[1]
-                                if arg.startswith('##'):
-                                    args[i] = float(arg.removeprefix('##'))
-                                elif arg.startswith('#'):
-                                    args[i] = int(arg.removeprefix('#'))
-                                elif arg.startswith('&'):
-                                    args[i] = arg.removeprefix('&')
-                                elif arg.startswith('!'):
-                                    args[i] = get_bool(arg)
-                                else:
-                                    args[i] = vars[args[i]]
-                            vars[args[-1]] = vars[args[1]].run(namespace, args[2:-1])
-                            namespace['executing_func'] = False
-                        else:  # This simulates an exception
-                            print(f"Function arguments do not match definitions in {args[1]}")
-                            namespace['stack'] = [None]
-                            namespace['stack_pointer'] = 0
-                            namespace['executing_subr'] = False
-                            namespace['executing_func'] = False
-                    namespace['if_stack'].clear()
-                else:
-                    namespace['if_stack'].append(vars[args[0]])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'ELSE':
-        if len(args) >= 1:
-            if len(namespace['if_stack']) > 0:
-                if isinstance(vars[args[0]], Subroutine):
-                    vars[args[0]].run(namespace)
-                    namespace['executing_subr'] = False
-                else:  # This allows for custom Python types to be run
-                    if len(args[1:-1]) == len(vars[args[0]].argdefs):
-                        for i, arg in enumerate(args[1:-1]):
-                            i += 1  # This accounts for the fact that we are excluding args[0]
-                            if arg.startswith('##'):
-                                args[i] = float(arg.removeprefix('##'))
-                            elif arg.startswith('#'):
-                                args[i] = int(arg.removeprefix('#'))
-                            elif arg.startswith('&'):
-                                args[i] = arg.removeprefix('&')
-                            elif arg.startswith('!'):
-                                args[i] = get_bool(arg)
-                            else:
-                                args[i] = vars[args[i]]
-                        vars[args[-1]] = vars[args[0]].run(namespace, args[1:-1])
-                        namespace['executing_func'] = False
-                    else:  # This simulates an exception
-                        print(f"Function arguments do not match definitions in {args[0]}")
-                        namespace['stack'] = [None]
-                        namespace['stack_pointer'] = 0
-                        namespace['executing_subr'] = False
-                        namespace['executing_func'] = False
-                namespace['if_stack'].clear()
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'FOR':
-        if len(args) >= 3:
-            for item in vars[args[1]]:
-                vars[args[0]] = item
-                if isinstance(vars[args[2]], Subroutine):
-                    vars[args[2]].run(namespace)
-                    namespace['executing_subr'] = False
-                else:  # This allows for custom Python types to be run
-                    if len(args[3:-1]) == len(vars[args[2]].argdefs):
-                        args_list = []
-                        for i, arg in enumerate(args[3:-1]):
-                            if arg.startswith('##'):
-                                args_list.append(float(arg.removeprefix('##')))
-                            elif arg.startswith('#'):
-                                args_list.append(int(arg.removeprefix('#')))
-                            elif arg.startswith('&'):
-                                args_list.append(arg.removeprefix('&'))
-                            elif arg.startswith('!'):
-                                args_list.append(get_bool(arg))
-                            else:
-                                args_list.append(vars[args[i+3]])
-                        vars[args[-1]] = vars[args[2]].run(namespace, args_list)
-                        namespace['executing_func'] = False
-                    else:  # This simulates an exception
-                        print(f"Function arguments do not match definitions in {args[0]}")
-                        namespace['stack'] = [None]
-                        namespace['stack_pointer'] = 0
-                        namespace['executing_subr'] = False
-                        namespace['executing_func'] = False
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'FORI':
-        if len(args) >= 4:
-            for index, item in enumerate(vars[args[2]]):
-                vars[args[0]] = index
-                vars[args[1]] = item
-                if isinstance(vars[args[3]], Subroutine):
-                    vars[args[3]].run(namespace)
-                    namespace['executing_subr'] = False
-                else:  # This allows for custom Python types to be run
-                    if len(args[4:-1]) == len(vars[args[3]].argdefs):
-                        args_list = []
-                        for i, arg in enumerate(args[4:-1]):
-                            if arg.startswith('##'):
-                                args_list.append(float(arg.removeprefix('##')))
-                            elif arg.startswith('#'):
-                                args_list.append(int(arg.removeprefix('#')))
-                            elif arg.startswith('&'):
-                                args_list.append(arg.removeprefix('&'))
-                            elif arg.startswith('!'):
-                                args_list.append(get_bool(arg))
-                            else:
-                                args_list.append(vars[args[i+4]])
-                        vars[args[-1]] = vars[args[3]].run(namespace, args_list)
-                        namespace['executing_func'] = False
-                    else:  # This simulates an exception
-                        print(f"Function arguments do not match definitions in {args[0]}")
-                        namespace['stack'] = [None]
-                        namespace['stack_pointer'] = 0
-                        namespace['executing_subr'] = False
-                        namespace['executing_func'] = False
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'ALA':
-        if len(args) >= 2:
-            while vars[args[0]]:
-                if isinstance(vars[args[1]], Subroutine):
-                    vars[args[1]].run(namespace)
-                    namespace['executing_subr'] = False
-                else:  # This allows for custom Python types to be run
-                    if len(args[2:-1]) == len(vars[args[1]].argdefs):
-                        args_list = []
-                        for i, arg in enumerate(args[2:-1]):
-                            if arg.startswith('##'):
-                                args_list.append(float(arg.removeprefix('##')))
-                            elif arg.startswith('#'):
-                                args_list.append(int(arg.removeprefix('#')))
-                            elif arg.startswith('&'):
-                                args_list.append(arg.removeprefix('&'))
-                            elif arg.startswith('!'):
-                                args_list.append(get_bool(arg))
-                            else:
-                                args_list.append(vars[args[i+2]])
-                        vars[args[-1]] = vars[args[1]].run(namespace, args_list)
-                        namespace['executing_func'] = False
-                    else:  # This simulates an exception
-                        print(f"Function arguments do not match definitions in {args[0]}")
-                        namespace['stack'] = [None]
-                        namespace['stack_pointer'] = 0
-                        namespace['executing_subr'] = False
-                        namespace['executing_func'] = False
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'DALA':
-        if len(args) >= 2:
-            while True:
-                if isinstance(vars[args[1]], Subroutine):
-                    vars[args[1]].run(namespace)
-                    namespace['executing_subr'] = False
-                else:  # This allows for custom Python types to be run
-                    if len(args[2:-1]) == len(vars[args[1]].argdefs):
-                        args_list = []
-                        for i, arg in enumerate(args[2:-1]):
-                            if arg.startswith('##'):
-                                args_list.append(float(arg.removeprefix('##')))
-                            elif arg.startswith('#'):
-                                args_list.append(int(arg.removeprefix('#')))
-                            elif arg.startswith('&'):
-                                args_list.append(arg.removeprefix('&'))
-                            elif arg.startswith('!'):
-                                args_list.append(get_bool(arg))
-                            else:
-                                args_list.append(vars[args[i+2]])
-                        vars[args[-1]] = vars[args[1]].run(namespace, args_list)
-                        namespace['executing_func'] = False
-                    else:  # This simulates an exception
-                        print(f"Function arguments do not match definitions in {args[0]}")
-                        namespace['stack'] = [None]
-                        namespace['stack_pointer'] = 0
-                        namespace['executing_subr'] = False
-                        namespace['executing_func'] = False
-                if not vars[args[0]]:
-                    break
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'RAND':
-        if len(args) == 1:
-            vars[args[0]] = random.randrange(0, 65536)
-        elif len(args) == 3:
-            if args[0].startswith(('##', '#')):
-                args[0] = int(args[0].removeprefix('##').removeprefix('#'))
-            else:
-                args = vars[args[0]]
-            if args[1].startswith(('##', '#')):
-                args[1] = int(args[1].removeprefix('##').removeprefix('#'))
-            else:
-                args[1] = vars[args[1]]
-            vars[args[2]] = random.randrange(args[0], args[1])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    elif opcode == 'EXIT':
-        if len(args) == 0:
-            sys.exit()
-        elif len(args) == 1:
-            if args[0].startswith(('##', '#')):
-                args[0] = int(args[0].removeprefix('##').removeprefix('#'))
-            else:
-                args[0] = vars[args[0]]
-            sys.exit(args[0])
-        else:
-            print(f"Wrong arguments in {instruction}")
-    else:
-        if opcode != '' and opcode not in ('GIVE','TAKE','SYNC'):
-            print(f"Unknown instruction {instruction}")
-    vars = {var.upper(): vars[var] for var in vars}
+class Namespace:
+    def __init__(self, _name: str, _pref: str = '$') -> None:
+        self._name = _name
+        self._vars = {}
+        self._pref = _pref  # This is used for error reporting
+        _npref = ''.join(map(lambda c: f'\{c}' if c in {'\\', '|', '$', '/', '(', ')', '?', '^', '[', ']', '+', '*', '-', '.', ':', '<', '>', '=', '!'} else c, _pref))
+        self._matcher = re.compile(rf'^{_npref}[\da-f]+$', re.IGNORECASE)
+        self._ops = {}
+        self.kill_list = KillList()
+        self.subspaces = {}
+        self.current_subspace = None
 
-namespace = {
-    'vars': {},
-    'killed_vars': [],
-    'kill_length': 0,
-    'stack': [None],
-    'stack_pointer': 0,
-    'if_stack': [],
-    'executing_subr': False,
-    'executing_func': False
-}
-if __name__ == '__main__':
-    if len(sys.argv) == 1:
-        print("mlmcr Revision 2")
-        print("Copyright (C) 2023  BarbeMCR")
-        print(f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} on {sys.platform}")
-        print("BarbeMCR welcomes you to programming hell!")
-        while True:
+    def copy(self, other: Self) -> None:
+        for k, v in other._vars.items(): self._vars[k] = v
+        for k, v in other._ops.items(): self._ops[k] = v
+        for k, v in other.subspaces.items(): self.subspaces[k] = v
+        self.kill_list.copy(other.kill_list)
+
+    def set_var(self, name: str, value: Any) -> None:
+        if self._matcher.match(name):
+            self._vars[name] = value
+        else:
+            nameFormatError(name, self._pref)
+
+    def get_var(self, name: str) -> Any | None:
+        if name in self._vars:
+            return self._vars[name]
+        else:
+            genericNameError(name, self._name)
+
+    def del_var(self, name: str) -> None:
+        if name in self._vars:
+            del self._vars[name]
+        else:
+            genericNameError(name, self._name)
+
+    def new_op(self, op: str, ref: object) -> None:  # ref: function (python functions) | Function
+        self._ops[op.upper()] = ref
+
+    def call_op(self, op: str, args: list[str]) -> None:
+        if op in self._ops:
+            global current_op
+            current_op = op
             try:
-                invalid_vars = []
-                if namespace['stack'][0] is not None:
-                    if isinstance(namespace['stack'][namespace['stack_pointer']], Function):
-                        prompt = '    ' + '  '*(len(namespace['stack'])-1) + '> '
-                    else:
-                        prompt = '    ' + '  '*(len(namespace['stack'])-1) + '@ '
-                else:
-                    prompt = '  @ '
-                instruction = get_input(prompt)
-                if instruction.upper()[:6] == 'PYEVAL':  # Check special 'PYEVAL' and 'PYEXEC' opcodes
-                    args = instruction.split(',')
-                    args[0] = args[0].split(' ', 1)
-                    args = args[0] + args[1:]
-                    args.pop(0)
-                    for index, arg in enumerate(args):
-                        args[index] = arg.lstrip()
-                    if len(args) == 1:
-                        eval(args[0])
-                    elif len(args) == 2:
-                        vars[args[1]] = eval(args[0])
-                    else:
-                        print("'PYEVAL' requires at most two arguments")
-                elif instruction.upper()[:6] == 'PYEXEC':
-                    args = instruction.split(' ', 1)
-                    args.pop(0)
-                    exec(args[0])
-                else:
-                    if namespace['stack'][0] is not None:
-                        namespace['stack'][namespace['stack_pointer']].add_instruction(namespace, instruction)
-                    else:
-                        parse(namespace, instruction)
-                for var in namespace['vars']:
-                    if not var.startswith('$') or not all(char in set(string.hexdigits) for char in var.removeprefix('$')):
-                        print("Variables names must start with '$' and contain only hexadecimal characters")
-                        invalid_vars.append(var)
-                        namespace['stack'] = [None]
-                        namespace['stack_pointer'] = 0
-                        namespace['executing_subr'] = False
-                        namespace['executing_func'] = False
-                        namespace['if_stack'] = []
-                for var in invalid_vars:
-                    del namespace['vars'][var]
-            except KeyboardInterrupt:
-                namespace['stack'] = [None]
-                namespace['stack_pointer'] = 0
-                namespace['executing_subr'] = False
-                namespace['executing_func'] = False
-                namespace['if_stack'] = []
-                print("\nInput interrupted. Type 'EXIT' if you want to quit")
-            except KeyError:
-                namespace['stack'] = [None]
-                namespace['stack_pointer'] = 0
-                namespace['executing_subr'] = False
-                namespace['executing_func'] = False
-                namespace['if_stack'] = []
-                print(f"Exception in {instruction}: Unknown variable or key")
-            except RecursionError:
-                namespace['stack'] = [None]
-                namespace['stack_pointer'] = 0
-                namespace['executing_subr'] = False
-                namespace['executing_func'] = False
-                namespace['if_stack'] = []
-                print(f"Exception in {instruction}: Recursion too deep")
-            except Exception:
-                namespace['stack'] = [None]
-                namespace['stack_pointer'] = 0
-                namespace['executing_subr'] = False
-                namespace['executing_func'] = False
-                namespace['if_stack'] = []
-                print(f"Exception in {instruction}: Generic run-time error")
-    else:
-        if sys.argv[1].endswith('.mlmcr'):
-            with open(sys.argv[1], 'r') as file:
-                for line in file:
-                    try:
-                        invalid_vars = []
-                        line = line.lstrip().rstrip('\n')
-                        if line.upper()[:6] == 'PYEVAL':  # Check special 'PYEVAL' and 'PYEXEC' opcodes
-                            args = line.split(',')
-                            args[0] = args[0].split(' ', 1)
-                            args = args[0] + args[1:]
-                            args.pop(0)
-                            for index, arg in enumerate(args):
-                                args[index] = arg.lstrip()
-                            if len(args) == 1:
-                                eval(args[0])
-                            elif len(args) == 2:
-                                vars[args[1]] = eval(args[0])
-                            else:
-                                print("'PYEVAL' requires at most two arguments")
-                        elif line.upper()[:6] == 'PYEXEC':
-                            args = line.split(' ', 1)
-                            args.pop(0)
-                            exec(args[0])
+                # Redirects this calls in function opcodes to point to the <function> opcode
+                if [f for f in stack if hasattr(f,'scope') and f.scope==this(get_parent=True)]:
+                    s = get_subspace(get_parent=True)
+                    pop_subspace()
+                    if isinstance(self._ops[op], Callable):
+                        _op = self._ops[op]
+                        if (len(args)==len(_op.argdefs)) or (len(args)>=len(_op.argdefs) and _op.has_catchall()):
+                            call(_op, args)
                         else:
-                            if namespace['stack'][0] is not None:
-                                namespace['stack'][namespace['stack_pointer']].add_instruction(namespace, line)
-                            else:
-                                parse(namespace, line)
-                        for var in namespace['vars']:
-                            if not var.startswith('$') or not all(char in set(string.hexdigits) for char in var.removeprefix('$')):
-                                print("Variables names must start with '$' and contain only hexadecimal characters")
-                                invalid_vars.append(var)
-                        for var in invalid_vars:
-                            del vars[var]
-                    except KeyboardInterrupt:
-                        namespace['stack'] = [None]
-                        namespace['stack_pointer'] = 0
-                        namespace['executing_subr'] = False
-                        namespace['executing_func'] = False
-                        namespace['if_stack'] = []
-                        sys.exit()
-                    except KeyError:
-                        namespace['stack'] = [None]
-                        namespace['stack_pointer'] = 0
-                        namespace['executing_subr'] = False
-                        namespace['executing_func'] = False
-                        namespace['if_stack'] = []
-                        print(f"Exception in {line}: Unknown variable or key")
-                    except RecursionError:
-                        namespace['stack'] = [None]
-                        namespace['stack_pointer'] = 0
-                        namespace['executing_subr'] = False
-                        namespace['executing_func'] = False
-                        namespace['if_stack'] = []
-                        print(f"Exception in {line}: Recursion too deep")
-                    except Exception:
-                        namespace['stack'] = [None]
-                        namespace['stack_pointer'] = 0
-                        namespace['executing_subr'] = False
-                        namespace['executing_func'] = False
-                        namespace['if_stack'] = []
-                        print(f"Exception in {line}: Generic run-time error")
+                            append_subspace(s)
+                            wrongCallableArguments(len(args), len(_op.argdefs), _op.has_catchall())
+                    else:
+                        self._ops[op](args)
+                    append_subspace(s)
+                else:
+                    if isinstance(self._ops[op], Callable):
+                        _op = self._ops[op]
+                        if (len(args)==len(_op.argdefs)) or (len(args)>=len(_op.argdefs) and _op.has_catchall()):
+                            call(_op, args)
+                        else:
+                            wrongCallableArguments(len(args), len(_op.argdefs), _op.has_catchall())
+                    else:
+                        self._ops[op](args)
+                if not stack:
+                    backup()
+            except TypeError:
+                opFormatError(self._name, op)
         else:
-            print("File name must end with '.mlmcr' to be parsed")
-            sys.exit()
+            invalidOpError(self._name, op)
+
+    def kill_var(self, name: str) -> int | None:
+        if name in self._vars:
+            if self.kill_list.max_len > -1:
+                if len(self.kill_list._kills) < self.kill_list.max_len:
+                    del self._vars[name]
+                    return self.kill_list.kill(self._vars[name])
+                else:
+                    killListFullError(self._name, self.kill_list.max_len, name)
+            else:
+                t = self.kill_list.kill(self._vars[name])
+                del self._vars[name]
+                return t
+        else:
+            genericNameError(name, self._name)
+
+    def unkill_var(self, ticket: int, var: str) -> None:
+        if ticket in self.kill_list._kills:
+            self.set_var(var, self.kill_list.unkill(ticket))
+        else:
+            killTicketError(ticket, self._name)
+
+    def add_subspace(self, subspace: Self) -> None:
+        if hasattr(subspace, '_name'):
+            self.subspaces[subspace._name] = Namespace(subspace._name, subspace._pref)
+            self.subspaces[subspace._name].copy(subspace)
+        else:
+            namespaceFormatError(subspace.__name__)
+
+class KillList:
+    def __init__(self) -> None:
+        self._kills = {}
+        self.max_len = -1
+
+    def copy(self, other: Self) -> None:
+        for k, v in other._kills.items(): self._kills[k] = v
+
+    def kill(self, var: Any) -> int:
+        ticket = len(self._kills)
+        self._kills[ticket] = var
+        return ticket
+
+    def unkill(self, ticket: int) -> Any:
+        var = self._kills[ticket]
+        del self._kills[ticket]
+        return var
+
+class CatchAll:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+class LookBack:
+    def __init__(self, backref: str) -> None:
+        self.backref = backref
+
+class Break(Exception):
+    pass
+
+class Continue(Exception):
+    pass
+
+class Return(Exception):
+    def __init__(self, depth: int, value: Any = None) -> None:
+        self.depth = depth
+        self.value = value
+
+class Definable:
+    def __init__(self):
+        self.defline = n
+        self.body = []
+    def add_instruction(self, instruction: str) -> None:
+        self.body.append(instruction)
+
+class Callable(Definable):
+    def __init__(self, argdefs: list[str]) -> None:
+        super().__init__()
+        self.scope = Namespace('<fallback>', '@')
+        self.argdefs = argdefs
+        self.parent = Namespace('<fallback>')
+    def __call__(self, args: list[Any], parent: Namespace) -> None:
+        pass  # This is a fallback method to avoid getting an exception
+    def has_catchall(self) -> bool:
+        return sum(isinstance(a, CatchAll) for a in self.argdefs)
+
+class Function(Callable):
+    def __init__(self, argdefs: list[str]) -> None:
+        super().__init__(argdefs)
+
+    def __call__(self, args: list[Any], parent: Namespace) -> Any:
+        global context_type
+        # Scope preparation
+        self.parent = parent
+        self.scope = Namespace('<function>', '@')
+        self.scope.add_subspace(namespaces['_DEFAULT']) if '_DEFAULT' in namespaces else invalidNamespaceError('_DEFAULT')
+        self.scope.add_subspace(Namespace('EXT', '@'))
+        # Argument binding
+        for i, data in enumerate(zip(self.argdefs, args)):
+            if isinstance(data[0], CatchAll):
+                self.scope.set_var(data[0].name, args[i:])
+            else:
+                self.scope.set_var(data[0], data[1])
+        _context = context_type
+        context_type = 'function'  # This adjusts the context type for error reporting purposes
+        # Body execution
+        try:
+            run(self.body)
+        except Return as r:
+            if current_subspace_needs_cleanup:
+                pop_subspace()
+                current_subspace_needs_cleanup.pop()
+            if r.depth <= 0:
+                context_type = _context
+                return r.value
+            else:
+                stack_needs_pop.append(True)
+                r.depth -= 1
+                raise r
+
+    def add_instruction(self, instruction: str) -> None:
+        global deflen
+        super().add_instruction(instruction)
+        match instruction.lstrip().split(' ', maxsplit=1)[0].upper():
+            case 'END':
+                if deflen > 1: deflen -= 1
+                else: end_define()
+            case 'RTS' | 'ECLS':
+                if deflen > 1: deflen -= 1
+            case 'FUNC' | 'SUBR' | 'CLS':
+                deflen += 1
+
+class Subroutine(Definable):
+    def __call__(self, args: list[Any], parent: Namespace) -> None:
+        # Warning: args gets discarded!
+        global context_type
+        self.parent = parent  # parent is set up purely for intercompatibility purposes
+        _context = context_type
+        context_type = 'function'  # This adjusts the context type for error reporting purposes
+        run(self.body)  # Body execution
+        context_type = _context
+
+    def add_instruction(self, instruction: str) -> None:
+        global deflen
+        super().add_instruction(instruction)
+        match instruction.lstrip().split(' ', maxsplit=1)[0].upper():
+            case 'RTS':
+                if deflen > 1: deflen -= 1
+                else: end_define()
+            case 'END' | 'ECLS':
+                if deflen > 1: deflen -= 1
+            case 'FUNC' | 'SUBR' | 'CLS':
+                deflen += 1
+
+class Lambda(Callable):
+    def __init__(self, argdefs: list[str]) -> None:
+        super().__init__(argdefs)
+
+    def __call__(self, args: list[Any], parent: Namespace) -> Any:
+        global context_type
+        # Scope preparation
+        self.parent = parent
+        self.scope = Namespace('<lambda>', '@')
+        # Namespace imports
+        if self.parent in namespaces.values():
+            for k, v in namespaces.items():
+                self.scope.subspaces[k] = v  # A pointer to v gets created here (not a copy!):
+                                             # modifications to the lambda scope also get applied in the parent scope
+        else:
+            for k, v in self.parent.subspaces.items():
+                self.scope.subspaces[k] = v
+        # Argument binding
+        for i, data in enumerate(zip(self.argdefs, args)):
+            if isinstance(data[0], CatchAll):
+                self.scope.set_var(data[0].name, args[i:])
+            else:
+                self.scope.set_var(data[0], data[1])
+        _context = context_type
+        context_type = 'lambda'  # This adjusts the context type for error reporting purposes
+        # Body execution
+        try:
+            run(self.body)
+        except Return as r:
+            if current_subspace_needs_cleanup:
+                pop_subspace()
+                current_subspace_needs_cleanup.pop()
+            if r.depth <= 0:
+                context_type = _context
+                return r.value
+            else:
+                stack_needs_pop.append(True)
+                r.depth -= 1
+                raise r
+
+    def add_instruction(self, instruction: str) -> None:
+        super().add_instruction(instruction)
+        match instruction.lstrip().split(' ', maxsplit=1)[0].upper():
+            case 'END' | 'RTS' | 'ECLS':
+                cantUseOpHere()
+            case 'FUNC':
+                cantDefineHere("functions", "lambdas")
+            case 'SUBR':
+                cantDefineHere("subroutines", "lambdas")
+            case 'CLS':
+                cantDefineHere("classes", "lambdas")
+
+class LambdaApplicator:
+    def __init__(self, ref: Lambda):
+        self.ref = ref
+
+class Class:
+    pass
+
+# Core global variables
+namespaces = {
+    '_DEFAULT': Namespace('_DEFAULT')  # This is a hidden namespace where all core instructions reside
+}
+registers = {
+    'N': None,
+    'T': True,
+    'F': False,
+    'MLMCR.VER': (3, 0),
+    'MLMCR.HUMANVER': '3.0',
+    'MLMCR.AUTHOR': "Made with love (and hate) by BarbeMCR <3",
+    'MLMCR.COPYRIGHT': "Copyright (C) 2023  BarbeMCR",
+    'MLMCR.PYVER': f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}'
+}
+stack = []
+current_namespace = '_DEFAULT'
+if_stack = []
+trying = False
+aced_try = False
+defining = None
+deflen = 0
+error = False
+current_error = ('Unknown error', 'if you see this, please file a bug report')  # This should never be seen during normal use
+caught_error = ('', '')  # Same here
+context_type = 'main'
+backups = {
+    'namespaces': namespaces,
+    'registers': registers,
+    'stack': stack,
+    'current_namespace': current_namespace,
+    'if_stack': if_stack,
+    'trying': trying,
+    'aced_try': aced_try,
+    'defining': defining,
+    'deflen': deflen,
+    'context_type': context_type
+}
+
+# Specialized global variables (some with placeholder values)
+n = 0
+s = '...'  # It's run's source, but renamed to avoid name clashing
+in_pyblock = False
+pyblock = []
+current_op = None
+stack_needs_pop = []
+current_subspace_needs_cleanup = []
+
+# Core imports
+cores = (
+    'packinghelpers',
+    'vartools',
+    'arithmetics',
+    'consoleio',
+    'typeconverters',
+    'basicutilities',
+    'arraydefs',
+    'arrayops',
+    'mapops',
+    'operators',
+    'procs',
+    'stockif',
+    'controlflow',
+    'stocktry',
+    'registers'
+    #'classes'
+)
+
+def backup(var: str | None = None) -> None:
+    if var is None:
+        for v in backups:
+            backups[v] = eval(v) if not isinstance(eval(v), (set, list, dict)) else eval(v).copy()
+    else:
+        backups[var] = eval(var) if not isinstance(eval(var), (set, list, dict)) else eval(var).copy()
+
+def restore(var: str | None = None) -> None:
+    if var is None:
+        for v in backups:
+            globals()[v] = backups[v]
+    else:
+        globals()[var] = backups[var]
+    while this().current_subspace:
+        try:
+            pop_subspace()
+        except ThisLookupError:
+            pass
+
+def new_register(name: str) -> None:
+    parts = name.split('.')
+    lparts = len(parts)
+    if lparts <= 2:  # If there is more than one dot
+        if lparts == 1:
+            if len(parts[0]) <= 3:
+                registers[name] = None
+            else:
+                invalidRegisterName(name)
+        else:
+            if len(parts[0])<=8 and len(parts[1])<=3:
+                registers[name] = None
+            else:
+                invalidRegisterName(name)
+    else:
+        invalidRegisterName(name)
+
+def set_register(name: str, value: Any) -> None:
+    if name in registers:
+        registers[name] = value
+    else:
+        invalidRegister(name)
+
+def get_register(name: str) -> Any | None:
+    if name in registers:
+        return registers[name]
+    else:
+        invalidRegister(name)
+
+def del_register(name: str) -> None:
+    if name in registers:
+        del registers[name]
+    else:
+        invalidRegister(name)
+
+def new_namespace(name: str, _from: str, pref: str = '$') -> None:
+    if _from == '_DEFAULT':
+        if name not in namespaces:
+            namespaces[name] = Namespace(name, pref)
+    else:
+        if name not in this(get_parent=True).subspaces:
+            this(get_parent=True).add_subspace(Namespace(name, pref))
+
+def rename_namespace(old: str, new: str) -> None:
+    global current_namespace
+    if old in this().subspaces:
+        new_namespace(new, new, this().subspaces[old]._pref)
+        del this().subspaces[old]
+        append_subspace(new)
+    elif old in namespaces:
+        new_namespace(new, new, namespaces[old]._pref)
+        namespaces[new].copy(namespaces[old])
+        del namespaces[old]
+        current_namespace = new
+    else:
+        invalidNamespaceError(old)
+
+def delete_namespace(ns: str) -> None:
+    if ns in this().subspaces:
+        del this().subspaces[ns]
+    elif ns in namespaces:
+        del namespaces[ns]
+    else:
+        invalidNamespaceError(ns)
+
+def define(what: Function | Subroutine | Class) -> None:
+    global defining, deflen
+    defining = what
+    deflen = 1
+
+def end_define() -> None:
+    global defining, deflen
+    defining = None
+    deflen = 0
+
+def call(what: Function | Subroutine | Lambda | object, args: list = []) -> Any:
+    if hasattr(what, 'argdefs') and hasattr(what, 'has_catchall'):
+        if (len(args)==len(what.argdefs)) or (len(args)>=len(what.argdefs) and what.has_catchall()):
+            backup()
+            parent = this()
+            stack.append(what)
+            r = what(args, parent)
+            for _ in stack_needs_pop.copy():
+                stack.pop()
+                stack_needs_pop.pop()
+            if not error: stack.pop()
+            return r
+        else:
+            wrongCallableArguments(len(args), len(what.argdefs), what.has_catchall())
+    else:
+        backup()
+        parent = this()
+        stack.append(what)
+        r = what(args, parent)
+        for _ in stack_needs_pop.copy():
+            stack.pop()
+            stack_needs_pop.pop()
+        if not error: stack.pop()
+        return r
+
+def run_if(condition: bool, then: Function | Subroutine | Lambda | object, args: list = []) -> Any:
+    if len(if_stack) > 0: if_stack.clear()  # Clear the if stack if it isn't already empty
+    if condition:
+        r = call(then, args)
+        if_stack.clear()
+        return r
+    else:
+        if_stack.append(condition)
+
+def run_elif(condition: bool, then: Function | Subroutine | Lambda | object, args: list = []) -> Any:
+    if len(if_stack) > 0:
+        if not any(if_stack) and condition:
+            r = call(then, args)
+            if_stack.clear()
+            return r
+        else:
+            if_stack.append(condition)
+    else:
+        unmatchedOp('ELIF', 'IF')
+
+def run_else(then: Function | Subroutine | Lambda | object, args: list = []) -> Any:
+    if len(if_stack) > 0:
+        r = call(then, args)
+        if_stack.clear()
+        return r
+    else:
+        unmatchedOp('ELSE', 'IF')
+
+def init_try() -> None:
+    global trying, aced_try
+    trying = True
+    aced_try = False
+
+def run_when(when: str, then: Function | Subroutine | Lambda | object, args: list = []) -> Any:
+    if trying:
+        if catch(when):
+            r = call(then, args)
+            return r
+    else:
+        unmatchedOp('WHEN', 'TRY')
+
+def run_ace(then: Function | Subroutine | Lambda | object, args: list = []) -> Any:
+    if trying:
+        if aced_try:
+            r = call(then, args)
+            return r
+    else:
+        unmatchedOp('ACE', 'TRY')
+
+def run_then(then: Function | Subroutine | Lambda | object, args: list = []) -> Any:
+    if trying:
+        r = call(then, args)
+        return r
+    else:
+        unmatchedOp('THEN', 'TRY')
+
+def uninit_try() -> None:
+    global trying, aced_try
+    if trying:
+        trying = False
+        aced_try = False
+    else:  # This is deliberate, as it ensures the situation is restored to default even when there was nothing to stop
+        trying = False
+        aced_try = False
+        unmatchedOp('STOP', 'TRY')
+
+# This was the legacy version of 'this'. It has been kept here for historical purposes, as a mean to thank it for its
+# long service in older development versions of mlmcr 3 (and because it might still come in useful at some point).
+# def this(name: Namespace | None = None, subs: list[str] | None = None, get_parent: bool = False) -> Namespace:
+#     if get_parent:
+#         if subs is None: subs = current_subspace[:-1]
+#         if stack[:-1] and (name is None):
+#             for entry in reversed(stack[:-1]):
+#                 if hasattr(entry, 'scope'):
+#                     return entry.scope
+#         if name is None: name = namespaces[current_namespace]
+#         if not subs:
+#             return name
+#         return this(name.subspaces[subs[0]], subs[1:])
+#     else:
+#         if subs is None: subs = current_subspace
+#         if stack and (name is None):
+#             for entry in reversed(stack):
+#                 if hasattr(entry, 'scope'):
+#                     return entry.scope
+#         if name is None: name = namespaces[current_namespace]
+#         if not subs:
+#             return name
+#         return this(name.subspaces[subs[0]], subs[1:])
+
+def this(name: Namespace | None = None, get_parent: bool = False) -> Namespace:
+    # name is for backwards compatibility: older iterations of 'this' used it as a fail-safe
+    # and older libraries could still be using it; it doesn't hurt anyways
+
+    # Initialize the search
+    if name: current_scope = name
+    else: current_scope = namespaces[current_namespace]
+    current_parent = current_scope
+    stack_not_exhausted = len(stack)>0
+    # Start the search loop
+    while True:
+        scope_subspace = current_scope.current_subspace
+        if stack_not_exhausted:  # If the stack has not been exhausted
+            for entry in reversed(stack):  # For every item in the stack
+                if hasattr(entry, 'scope'):  # Only consider it if it creates a new scope
+                    current_parent = entry.parent
+                    current_scope = entry.scope
+                    stack_not_exhausted = False
+                    break
+            stack_not_exhausted = False
+        else:  # If the stack is no longer relevant
+            if scope_subspace is None:  # If this is the last subspace in the hierarchy
+                if get_parent:
+                    return current_parent
+                return current_scope
+            else:  # If there are other nested subspaces to consider
+                current_parent = current_scope
+                if scope_subspace in current_scope.subspaces:
+                    current_scope = current_scope.subspaces[scope_subspace]
+                else:
+                    raise ThisLookupError(scope_subspace)
+
+def append_subspace(sub: str) -> None:
+    this().current_subspace = sub
+
+def pop_subspace() -> None:
+    this(get_parent=True).current_subspace = None
+
+def get_subspace(get_parent: bool = False) -> str:
+    return this(get_parent=get_parent).current_subspace
+
+def convert(args: list[str]) -> list[Any]:
+    a = []
+    for arg in args:
+        if arg.startswith('##'):
+            a.append(to_float(arg))
+        elif arg.startswith('#'):
+            a.append(to_int(arg))
+        elif arg.startswith('&'):
+            a.append(to_str(arg))
+        elif arg.startswith('!'):
+            a.append(to_bool(arg))
+        elif arg.startswith(':'):  # Lambda definition
+            a.append(arg.removeprefix(':'))
+        elif arg.startswith(('<->', '<-', '->')):  # Variable declaration
+            a.append(arg.removeprefix('<->').removeprefix('<-').removeprefix('->'))
+        elif arg.startswith('>>'):  # Special name idiom
+            a.append(arg.removeprefix('>>'))
+        elif arg.startswith('>'):  # Parameter declaration
+            a.append(arg.removeprefix('>'))
+        elif arg == '*':  # Any error idiom
+            a.append('*')
+        elif arg.startswith('*'):  # Lambda applicator
+            ns, var = get_namespace(arg.removeprefix('*'))
+            if ns == 'THIS':
+                l = this().get_var(var)
+            elif ns in this().subspaces:
+                # Search the root function scope if we are looking for a default and the scope's prefix is different from _DEFAULT's
+                if ns == '_DEFAULT' and (context_type=='function' or context_type=='lambda') and var.startswith(this()._pref):
+                    l = this().get_var(var)
+                else:
+                    append_subspace(ns)
+                    l = this().get_var(var)
+                    pop_subspace()
+            elif ns in namespaces:
+                l = namespaces[ns].get_var(var)
+            else:
+                invalidNamespaceError(ns)
+            if isinstance(l, Lambda):
+                a.append(LambdaApplicator(l))
+            else:
+                cantDo("apply a lambda from", l)
+        elif arg.startswith('?'):  # Catch-all parameter
+            a.append(CatchAll(arg.removeprefix('?')))
+        elif arg.startswith('^'):  # Lookback argument
+            a.append(LookBack(arg.removeprefix('^')))
+        elif arg.startswith('<>'):  # Register
+            a.append(get_register(arg.removeprefix('<>')))
+        else:
+            ns, var = get_namespace(arg)
+            if ns == 'THIS':
+                a.append(this().get_var(var))
+            elif ns in this().subspaces:
+                # Search the root function scope if we are looking for a default and the scope's prefix is different from _DEFAULT's
+                if ns == '_DEFAULT' and (context_type=='function' or context_type=='lambda') and var.startswith(this()._pref):
+                    v = this().get_var(var)
+                else:
+                    append_subspace(ns)
+                    v = this().get_var(var)
+                    pop_subspace()
+                a.append(v)
+            elif ns in namespaces:
+                a.append(namespaces[ns].get_var(var))
+            else:
+                invalidNamespaceError(ns)
+    # Lambda resolution
+    for i, x in enumerate(a.copy()):
+        if isinstance(x, LambdaApplicator):
+            if not x.ref.has_catchall():
+                upto = i + len(x.ref.argdefs)
+                a[i:upto+1] = (call(x.ref, a[i+1:upto+1]),)
+            else:
+                lambdaError("with a catch-all parameter")
+    return a
+
+def to_float(what: str) -> float | None:
+    try:
+        return float(what.removeprefix('##'))
+    except ValueError:
+        notaNumber(what.removeprefix('##'))
+
+def to_int(what: str) -> int | None:
+    try:
+        return int(what.removeprefix('#'))
+    except ValueError:
+        notaNumber(what.removeprefix('#'))
+
+def to_str(what: str) -> str:
+    return what.removeprefix('&')
+
+def to_bool(what: str) -> bool:
+    if what == '!0': return False
+    else: return True
+
+def between(func: object, args: list[Any], min: int, max: int) -> None:  # here object = function
+    if min <= len(args) <= max:
+        func(args)
+    else:
+        opArgNumGenericError(current_namespace, current_op, min, max, len(args))
+
+def atmost(func: object, args: list[Any], max: int) -> None:  # here object = function
+    if len(args) <= max:
+        func(args)
+    else:
+        opArgTooManyError(current_namespace, current_op, max, len(args))
+
+def atleast(func: object, args: list[Any], min: int) -> None:  # here object = function
+    if min <= len(args):
+        func(args)
+    else:
+        opArgTooLittleError(current_namespace, current_op, min, len(args))
+
+def when(func: object, args: list[Any], count: int) -> None:  # here object = function
+    if len(args) == count:
+        func(args)
+    else:
+        opArgNumWrongError(current_namespace, current_op, count, len(args))
+
+def bind(func: object, op: str) -> None:  # here object = function
+    this().new_op(op, func)
+
+def check(arg: Any, t: Any) -> bool:  # Works exactly like isinstance, but is shorter to write
+    return isinstance(arg, t)
+
+def has(arg: Any, a: str) -> bool:  # Works exactly like hasattr, but is shorter to write
+    return hasattr(arg, a)
+
+def gettype(of: Any) -> str:
+    if isinstance(of, bool):
+        return 'BOOL'
+    elif isinstance(of, int):
+        return 'INT'
+    elif isinstance(of, float):
+        return 'FLPT'
+    elif isinstance(of, str):
+        return 'STR'
+    elif of is None:
+        return 'NULL'
+    elif isinstance(of, LookBack):
+        return 'LOOKBACK'
+    elif isinstance(of, list):
+        return 'SEQ'
+    elif isinstance(of, PermaSequence):
+        return 'PSEQ'
+    elif isinstance(of, tuple):
+        return 'PACK'
+    elif isinstance(of, dict):
+        return 'MAP'
+    elif isinstance(of, range):
+        return 'LOOP'
+    elif isinstance(of, Subroutine):
+        return 'SUBR'
+    elif isinstance(of, Function):
+        return 'FUNC'
+    elif isinstance(of, Lambda):
+        return 'PROC'
+    elif isinstance(of, Class):
+        return of._name
+    else:
+        return type(of).__name__
+
+def tokenize(source: str) -> tuple[str, list[str]]:
+    source = source.split(';;', maxsplit=1)[0]  # Remove comments
+    tokens = source.split(' ', maxsplit=1)  # Separate opcode from arguments
+    opcode = tokens[0].upper()  # Make the opcode uppercase
+    if len(tokens) > 1:
+        # Replace escaped ',' and ';;' sequences with placeholders in arguments
+        tokens[1] = tokens[1].replace('/,/', '/|-|/').replace('/;;/', '/|;|/')
+        args = tokens[1].split(',')  # Split into individual arguments
+        for i, arg in enumerate(args):
+            # Detect colons and amperstands and treat the values following them as instructions and string literals respectively
+            found_colon = False
+            colon_pos = 0
+            found_amperstand = False
+            amperstand_pos = len(args)
+            for p, c in enumerate(arg):
+                if c == ':' and not found_colon:
+                    found_colon = True
+                    colon_pos = p
+                elif c == '&' and not found_amperstand:
+                    found_amperstand = True
+                    amperstand_pos = p
+            if found_colon and colon_pos < amperstand_pos:
+                # Join with all the successive arguments (with the original sequences replaced back), deleting them
+                args[i:] = [','.join([a.replace('/|-|/', '/,/').replace('/|;|/', '/;;/') for a in args[i:]]).lstrip()]
+            elif found_amperstand:
+                args[i] = arg.replace('/|-|/', ',').replace('/|;|/', ';;').lstrip()  # Replace the placeholder sequences in strings
+            else:
+                args[i] = arg.replace(' ', '').upper()  # Remove spaces and make other arguments uppercase
+            if args[i].isspace(): args[i] = ''  # Convert whitespace arguments to empty strings for later removal
+        args = [arg for arg in args if arg != '']  # Make args a new list with the empty arguments removed
+    else:
+        args = []
+    return opcode, args
+
+def get_namespace(element: str) -> tuple[str, str]:
+    parts = element.split('.', maxsplit=1)
+    if len(parts) == 2:
+        namespace, el = parts
+        return namespace, el
+    else:
+        return '_DEFAULT', parts[0]
+
+def run(source: list) -> None | Any:
+    global error, n, s, in_pyblock, pyblock, current_namespace
+    s = source
+    for _n, line in enumerate(source):
+        if not in_pyblock:
+            if defining is None:
+                opcode, args = tokenize(line.lstrip())
+                if opcode != '':
+                    # Special pyblock handling
+                    if opcode == 'PYBLOCK':
+                        in_pyblock = True
+                        pyblock = []
+                    else:
+                        namespace, op = get_namespace(opcode)
+                        args = convert(args)
+                        try:
+                            if namespace == 'THIS':
+                                this().call_op(op, args)
+                            elif namespace in this().subspaces:
+                                append_subspace(namespace)
+                                current_subspace_needs_cleanup.append(True)  # Functions will pop current_subspace on return if True
+                                this().call_op(op, args)
+                                pop_subspace()
+                                current_subspace_needs_cleanup.pop()
+                            elif namespace in namespaces:
+                                namespaces[namespace].call_op(op, args)
+                            else:
+                                invalidNamespaceError(namespace)
+                            # If the current error wasn't explicitly handled, report it
+                            if current_error != ('Unknown error', 'if you see this, please file a bug report'):
+                                try:
+                                    if context_type=='function' or context_type=='lambda': n = _n + stack[-1].defline
+                                    else: n = _n
+                                except IndexError:
+                                    n = "<can't load>"
+                                report_error(*current_error)
+                        except ThisLookupError as e:
+                            thisLookupError(e.ref)
+                        except Break:
+                            cantUseAdvancedControlFlow()
+                        except Continue:
+                            cantUseAdvancedControlFlow()
+                        except Return as e:
+                            stackError(e.depth)
+            else:
+                defining.add_instruction(line.lstrip())
+        else:
+            # "light-weight" line manipulation -> opcode
+            if line.lstrip().split(' ', maxsplit=1)[0].upper() == 'PYEND':
+                in_pyblock = False
+                exec('\n'.join(pyblock))  # Execute the pyblock as python code
+                # Check for any mlmcr errors thrown from the pyblock
+                if current_error != ('Unknown error', 'if you see this, please file a bug report'):
+                    report_error(*current_error)
+                in_pyblock = False  # Reset the global flag again so that code in the pyblock can't mess it up
+                pyblock = []  # Clean up pyblock just in case
+            else:
+                pyblock.append(line)
+
+def run_file(path: str) -> None:
+    if os.path.isfile(path):
+        if not path.endswith('.mlmcr'):
+            if path.endswith('.mlmch'):
+                print("Interpreter warning: it seems like you are trying to run an mlmcr header file (.mlmch) as an mlmcr script file (.mlmcr)")
+                print("Are you sure this is what you intended to do?")
+            else:
+                print("Interpreter warning: you are trying to run a file without the .mlmcr extension")
+                print(f"Are you sure that '{path}' is a valid mlmcr script file?")
+        with open(path) as f:
+            l = f.readlines()
+            for i, x in enumerate(l):
+                # Hack for removing unescaped \n sequences from f
+                l[i] = x.replace('\\n', '/|n|/').replace('\n', '').replace('/|n|/', '\\n')
+            try:
+                run(l)
+            except EOFError:
+                print("\nThis is the end of your current mlmcr session. See you next time!")
+            except KeyboardInterrupt:
+                print("\nThis is the end of your current mlmcr session. See you next time!")
+            except MlmcrError:
+                pass  # Catch MlmcrError and move on
+            except RecursionError:
+                recursionError()
+            except MemoryError:
+                memoryError()
+    else:
+        print(f"Interpreter error: '{path}' does not exist or is not a file!")
+        sys.exit(66)  # EX_NOINPUT
+
+def splash() -> None:
+    if sys.platform.startswith('win32'):  # Change the window title on Windows
+        import ctypes
+        ctypes.windll.kernel32.SetConsoleTitleW("mlmcr (revision 3)")
+    print("mlmcr Revision 3")
+    print("Copyright (C) 2023  BarbeMCR")
+    print(f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} on {sys.platform}")
+    print("BarbeMCR welcomes you to programming hell!")
+
+def run_repl() -> None:
+    global error
+    while True:
+        # Choose the right prompt to display
+        if in_pyblock: prompt = '$ '
+        elif defining: prompt = '> '  # should be 'defining is not None' but we don't have other falsy values here
+        else: prompt = '@ '
+        # Take input
+        try:
+            line = input('  ' + '    '*(deflen) + prompt)
+        except EOFError:
+            continue
+        except KeyboardInterrupt:
+            print("  <- this instruction wasn't executed")
+            print("This is the end of your current mlmcr session. See you next time!")
+            sys.exit(0)  # EX_OK
+        try:
+            run([line])  # line is wrapped in a list so that run can be reused in repl mode
+        except MlmcrError:
+            pass  # We don't need this exception block to do anything:
+                  # all the error-related stuff gets already done long before MlmcrError gets raised
+        except RecursionError:
+            recursionError()
+        except MemoryError:
+            memoryError()
+        error = False
+
+def import_mlmch(file: str) -> None:
+    global current_namespace
+    path = file + '.mlmch'
+    if os.path.isfile(path):
+        _from = current_namespace
+        if current_namespace != '_DEFAULT': append_subspace(os.path.basename(file.upper()))
+        else: current_namespace = os.path.basename(file.upper())
+        with open(path) as h:
+            l = h.readlines()
+            for i, x in enumerate(l):
+                # Hack for removing unescaped \n sequences from h
+                l[i] = x.replace('\\n', '/|n|/').replace('\n', '').replace('/|n|/', '\\n')
+            if _from != '_DEFAULT': new_namespace(this(get_parent=True).current_subspace.upper(), _from)
+            else: new_namespace(current_namespace.upper(), _from)
+            try:
+                run(l)
+            except MlmcrError:
+                pass
+            except RecursionError:
+                recursionError()
+            except MemoryError:
+                memoryError()
+        if _from != '_DEFAULT': pop_subspace()
+        current_namespace = _from
+    else:
+        invalidMlmch(path)
+
+def report_error(err: str, info: str) -> None:
+    if isinstance(n, int):
+        try:
+            if in_pyblock:
+                print(f"{err} at <pyblock ending on line {n+1}>, filespace {current_namespace}...{this()._name if this()._name!=current_namespace else '<root>'}: {info}")
+            else:
+                print(f"{err} at line {n+1}, filespace {current_namespace}...{this()._name if this()._name!=current_namespace else '<root>'}: {info}")
+                print(f"{s[n]}  <- detected here (might not be accurate)")
+        except ThisLookupError:
+            if in_pyblock:
+                print(f"{err} at <pyblock ending on line {n+1}>, filespace {current_namespace}...<unknown>: {info}")
+            else:
+                print(f"{err} at line {n+1}, filespace {current_namespace}...<unknown>: {info}")
+                print(f"{s[n]}  <- detected here (might not be accurate)")
+    else:
+        print(f"{err}: {info}")
+        print("Warning: we couldn't determine the affected line due to a stack underflow error during handling!")
+    global error, current_error
+    error = True
+    current_error = ('Unknown error', 'if you see this, please file a bug report')  # Clean up just in case
+    restore()
+    raise MlmcrError
+
+def catch(err: str) -> bool:
+    global caught_error, aced_try
+    # If any error occured
+    if err == '*' and caught_error != ('', ''):
+        caught_error = ('', '')
+        aced_try = False
+        return True
+    else:
+        # If the current error matches what we want to catch
+        if caught_error[0] == err:
+            caught_error = ('', '')
+            aced_try = False
+            return True
+        # Otherwise there must no error (or another one we haven't handled yet, but we eventually handle if it is relevant)
+        else:
+            aced_try = True  # We can assume there was no relevant error here since this flag will be reset if the error is handled
+            return False
+
+def throw(err: str, info: str = "no further information") -> None:
+    global current_error, caught_error
+    if trying:
+        if caught_error == ('', ''):
+            caught_error = (err, info)
+    else:
+        if current_error == ('Unknown error', 'if you see this, please file a bug report'):
+            current_error = (err, info)
+
+# Builtin error functions
+# (those are specialized and needed for all sorts of errors so it makes sense to have them builtin instead of core)
+def genericNameError(var, ns):
+    if ns != '_DEFAULT': throw("Name error", f"variable {var} does not exist in namespace {ns}")
+    else: throw("Name error", f"variable {var} does not exist")
+
+def nameFormatError(var, pref):
+    throw("Format error", f"variable {var} can't be created as its name isn't of the form\n{pref} + hexadecimal string (e.g. {pref}B4C0, {pref}77c5), or a declaration was put where an argument was supposed to go")
+
+def notaNumber(val):
+    throw("Number error", f"{val} is neither an INT nor a FLPT, and can't be converted to either")
+
+def killListFullError(ns, size, var):
+    if ns != '_DEFAULT': throw("Kill list full error", f"{ns}'s kill list, of size {size}, is full and can't accept variable {var}")
+    else: throw("Kill list full error", f"kill list, of size {size}, is full and can't accept variable {var}")
+
+def killTicketError(ticket, ns):
+    if ns != '_DEFAULT': throw("Ticket error", f"kill ticket {ticket} does not exist in {ns}'s kill list")
+    else: throw("Ticket error", f"kill ticket {ticket} does not exist")
+
+def invalidOpError(ns, op):
+    if ns != '_DEFAULT': throw("Opcode error", f"opcode {ns}.{op} does not exist")
+    else: throw("Opcode error", f"opcode {op} does not exist")
+
+def opFormatError(ns, op):
+    if ns != '_DEFAULT': throw("Opcode error", f"something weird with opcode {ns}.{op} happened. Either:\n - you put a variable name where a declaration was supposed to go (e.g. $0 instead of ->$0)\n - you passed through some weird content which was not supposed to be here\n - or {ns}.{op} has an invalid format (check opcode definition and relevant bind call)")
+    else: throw("Opcode error", f"something weird with opcode {op} happened. Either:\n - you put a variable name where a declaration was supposed to go (e.g. $0 instead of ->$0)\n - you passed through some weird content which was not supposed to be here\n - or {op} has an invalid format (if this is the case, file a bug report after excluding EVERYTHING else)")
+
+def opArgNumGenericError(ns, op, req_min, req_max, count):
+    if ns != '_DEFAULT': throw("Argument error", f"opcode {ns}.{op} requires between {req_min} and {req_max} argument(s), but {count} were passed")
+    else: throw("Argument error", f"opcode {op} requires between {req_min} and {req_max} argument(s), but {count} were passed")
+
+def opArgTooManyError(ns, op, req, count):
+    if ns != '_DEFAULT': throw("Argument error", f"opcode {ns}.{op} requires at most {req} argument(s), but {count} were passed")
+    else: throw("Argument error", f"opcode {op} requires at most {req} argument(s), but {count} were passed")
+
+def opArgTooLittleError(ns, op, req, count):
+    if ns != '_DEFAULT': throw("Argument error", f"opcode {ns}.{op} requires at least {req} argument(s), but {count} were passed")
+    else: throw("Argument error", f"opcode {op} requires at least {req} argument(s), but {count} were passed")
+
+def opArgNumWrongError(ns, op, req, count):
+    if ns != '_DEFAULT': throw("Argument error", f"opcode {ns}.{op} requires {req} argument(s), but {count} were passed")
+    else: throw("Argument error", f"opcode {op} requires {req} argument(s), but {count} were passed")
+
+def opArgTypeError(ns, op, argn):
+    if ns != '_DEFAULT': throw("Type error", f"argument #{argn+1} was of the wrong type for opcode {ns}.{op}")
+    else: throw("Type error", f"argument #{argn+1} was of the wrong type for opcode {op}")
+
+def typeErr(argn):  # opArgTypeError convenience function
+    opArgTypeError(current_namespace, current_op, argn)
+
+def cantUseOpHere():
+    if current_namespace != '_DEFAULT': throw("Context error", f"opcode {current_namespace}.{current_op} can't be used here")
+    else: throw("Context error", f"opcode {current_op} can't be used here")
+
+def cantDo(what, on, t=None):
+    throw("Operation type error", f"you can't {what} {on} of type {gettype(on) if t is None else t}")
+
+def invalidNamespaceError(ns):
+    if ns != '_DEFAULT': throw("Namespace error", f"namespace {ns} does not exist")
+    else: throw("Namespace error", "the default namespace is missing!")
+
+def namespaceFormatError(ns):
+    throw("Namespace error", f"namespace {ns} has an invalid format (is it a Namespace or compatible class?)")
+
+def arrayIndexError():
+    throw("Index error", "array index out of bounds")
+
+def mapKeyError(k):
+    throw("Key error", f"inexistent map key {k}")
+
+def invalidCatchalls():
+    throw("Definition error", "there is more than one catch-all parameter (or it is misplaced)")
+
+def cantDefineHere(what, context):
+    throw("Definition error", f"can't define {what} in {context}")
+
+def wrongCallableArguments(passed, req, catchall=False):
+    throw("Argument count error", f"this callable requires {'at least ' if catchall else ''}{req} argument(s), but {passed} were passed")
+
+def unmatchedOp(op, matcher):
+    throw("Mismatch error", f"opcode {op.upper()} requires a {matcher.upper()} opcode beforehand")
+
+def lambdaError(message):
+    throw("Lambda error", f"you can't apply a lambda {message}")
+
+def invalidRegisterName(name):
+    throw("Invalid register name error", f"register name {name} is not valid, since it does not respect the [8.]3 rule for register names")
+
+def invalidRegister(name):
+    throw("Invalid register error", f"register {name} does not exist")
+
+def cantUseAdvancedControlFlow():
+    throw("Control flow error", "can't use advanced control flow here")
+
+def stackError(d):
+    throw("Stack error", f"the stack isn't deep enough to return another {d+1} level(s)")
+
+def invalidMlmch(path):
+    throw("Inexistent header file", f"there is no mlmcr header file at location {path.lower()}")
+
+def thisLookupError(ref):
+    throw("Fatal lookup error", f"{ref} is not a valid name in the current namespace hierarchy")
+
+def recursionError():
+    throw("Recursion error", "apparently something blew the stack. It looks like someone should think about handling recursion better...")
+
+def memoryError():
+    throw("Memory error", "apparently you ran out of available memory. How is this possible? Only BarbeMCR knows!\nSeriously though, you have some explaining to do...")
+
+# Startup
+if __name__ == '__main__':
+    for core in cores:
+        if os.path.isfile(os.path.join('.', 'cores', core)):
+            import_mlmch(os.path.join('.', 'cores', core))
+        else:
+            print(f"Interpreter warning: missing core {core}.mlmch!")
+    backup('namespaces')
+    if len(sys.argv) > 2:
+        print("Interpreter error: too many command-line arguments!")
+        print("Usage: mlmcr [script]")
+        sys.exit(64)  # EX_USAGE
+    elif len(sys.argv) == 2:
+        run_file(sys.argv[1])
+    else:
+        splash()
+        run_repl()

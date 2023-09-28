@@ -1,0 +1,210 @@
+name >>_default
+
+pyblock
+def join(args):  # JOIN to, items...  (to:<->{SEQ|PSEQ}, items...:*)
+    def _join(args):
+        a = this().get_var(args[0])
+        if has(a, 'append'):
+            for arg in args[1:]:
+                a.append(arg)
+            this().set_var(args[0], a)
+        else:
+            cantDo("append items to", args[0])
+    atleast(_join, args, 1)
+
+def nest(args):  # NEST to, iters...  (to:<->{SEQ|PSEQ}, iters...:SEQ|PSEQ|PACK|MAP|LOOP|STR)
+    def _nest(args):
+        a = this().get_var(args[0])
+        if has(a, 'extend'):
+            for i, arg in enumerate(args[1:]):
+                if has(a, '__iter__'):
+                    a.extend(arg)
+                else:
+                    typeErr(i)
+            this().set_var(args[0], a)
+        else:
+            cantDo("extend with iterables", args[0])
+    atleast(_nest, args, 1)
+
+def pop(args):  # POP from, index, [store]  (from:<->{SEQ}, index:INT, store:->{*})
+    def _pop(args):
+        a = this().get_var(args[0])
+        if has(a, 'pop'):
+            if len(args) == 2:
+                try:
+                    a.pop(args[1])
+                except IndexError:
+                    arrayIndexError()
+            else:
+                try:
+                    store = a.pop(args[1])
+                except IndexError:
+                    arrayIndexError()
+                this().set_var(args[2], store)
+            this().set_var(args[0], a)
+        else:
+            cantDo("pop items from", args[0])
+    between(_pop, args, 2, 3)
+
+def rem(args):  # REM from, item  (from:<->{SEQ}, item:*)
+    def _rem(args):
+        a = this().get_var(args[0])
+        if has(a, 'remove'):
+            try:
+                a.remove(args[1])
+            except IndexError:
+                arrayIndexError()
+            this().set_var(args[0], a)
+        else:
+            cantDo("remove items from", args[0])
+    when(_rem, args, 2)
+
+def geti(args):  # GETI from, item, store  (from:SEQ|PSEQ|PACK, item:*, store:->{*item})
+    def _geti(args):
+        if has(args[0], 'index'):
+            try:
+                i = args[0].index(args[1])
+            except ValueError:
+                arrayIndexError()
+            this().set_var(args[2], i)
+        else:
+            cantDo("get indexes from", args[0])
+    when(_geti, args, 3)
+
+def get(args):  # GET from, index, store  (from:SEQ|PSEQ|PACK, index:INT, store:->{*})
+    def _get(args):
+        if has(args[0], '__getitem__'):
+            try:
+                i = args[0][args[1]]
+            except IndexError:
+                arrayIndexError()
+            this().set_var(args[2], i)
+        else:
+            cantDo("get items from", args[0])
+    when(_get, args, 3)
+
+def rest(args):  # REST from, start, [stop], [step], store  (from:SEQ|PSEQ|PACK, start:INT, stop:INT, step:INT, store:->{*from})
+    def _rest(args):
+        if has(args[0], '__getitem__'):
+            if len(args) == 3:
+                s = args[0][args[1]:]
+                this().set_var(args[2], s)
+            elif len(args) == 4:
+                s = args[0][args[1]:args[2]]
+                this().set_var(args[3], s)
+            else:
+                s = args[0][args[1]:args[2]:args[3]]
+                this().set_var(args[4], s)
+        else:
+            cantDo("get slices from", args[0])
+    between(_rest, args, 3, 5)
+
+def setitem(args):  # SET to, index, item  (to:<->{SEQ}, index:INT, item:{*})
+    def _setitem(args):
+        a = this().get_var(args[0])
+        if has(a, 'insert'):
+            try:
+                a.insert(args[1], args[2])
+                this().set_var(args[0], a)
+            except IndexError:
+                arrayIndexError()
+        else:
+            cantDo("insert items into", args[0])
+    when(_setitem, args, 3)
+
+def repl(args):  # REPL to, index, item  (to:<->{SEQ}, index:INT, item:{*})
+    def _repl(args):
+        a = this().get_var(args[0])
+        if has(a, '__setitem__'):
+            try:
+                a[args[1]] = args[2]
+            except IndexError:
+                arrayIndexError()
+        else:
+            cantDo("replace items in", args[0])
+    when(_repl, args, 3)
+
+def count(args):  # COUNT from, item, store  (from:SEQ|PSEQ|PACK, item:*, store:->{INT})
+    def _count(args):
+        if has(args[0], 'count'):
+            c = args[0].count(args[1])
+            this().set_var(args[2], c)
+        else:
+            cantDo("count items in", args[0])
+    when(_count, args, 3)
+
+def rvrs(args):  # RVRS what  (what:<->{SEQ})
+    def _rvrs(args):
+        a = this().get_var(args[0])
+        if has(a, 'reverse'):
+            a.reverse()
+            this().set_var(args[0], a)
+        else:
+            cantDo("reverse", args[0])
+    when(_rvrs, args, 1)
+
+def sort(args):  # SORT what  (what:<->{SEQ})
+    def _sort(args):
+        a = this().get_var(args[0])
+        if has(a, 'sort'):
+            a.sort()
+            this().set_var(args[0], a)
+        else:
+            cantDo("sort", args[0])
+    when(_sort, args, 1)
+
+def rsort(args):  # RSORT what  (what:<->{SEQ})
+    def _rsort(args):
+        a = this().get_var(args[0])
+        if has(a, 'sort'):
+            a.sort(reverse=True)
+            this().set_var(args[0], a)
+        else:
+            cantDo("sort", args[0])
+    when(_rsort, args, 1)
+
+def length(args):  # LEN what, store  (what:SEQ|PSEQ|PACK|MAP|LOOP|STR, store:->{INT})
+    def _length(args):
+        if has(args[0], '__len__'):
+            s = len(args[0])
+            this().set_var(args[1], s)
+        else:
+            cantDo("get the lenght of", "<not an iterable>", "<unknown>")
+    when(_length, args, 2)
+
+def wipe(args):  # WIPE what  (what:<->{SEQ|PSEQ|MAP})
+    def _wipe(args):
+        a = this().get_var(args[0])
+        if has(a, 'clear'):
+            a.clear()
+            this().set_var(args[0], a)
+        else:
+            cantDo("clear", args[0])
+    when(_wipe, args, 1)
+
+def copy(args):  # COPY what, to  (what:SEQ|PSEQ|MAP, to:->{*what})
+    def _copy(args):
+        if has(args[0], 'copy'):
+            t = args[0].copy()
+            this().set_var(args[1], t)
+        else:
+            cantDo("copy", "<unique>", "<unknown>")
+    when(_copy, args, 2)
+
+bind(join, 'JOIN')
+bind(nest, 'NEST')
+bind(pop, 'POP')
+bind(rem, 'REM')
+bind(geti, 'GETI')
+bind(get, 'GET')
+bind(rest, 'REST')
+bind(setitem, 'SET')
+bind(repl, 'REPL')
+bind(count, 'COUNT')
+bind(rvrs, 'RVRS')
+bind(sort, 'SORT')
+bind(rsort, 'RSORT')
+bind(length, 'LEN')
+bind(wipe, 'WIPE')
+bind(copy, 'COPY')
+pyend

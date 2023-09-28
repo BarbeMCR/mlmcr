@@ -1,0 +1,81 @@
+name >>_default
+
+pyblock
+def assign(args):  # PUT value, var  (value:*, var:->{*value})
+    def _assign(args):
+        this().set_var(args[1], args[0])
+    when(_assign, args, 2)
+
+def delete(args):  # DEL var  (var:<-{*})
+    def _delete(args):
+        this().del_var(args[0])
+    when(_delete, args, 1)
+
+def new(args):  # NEW fromtype, to, args...  (fromtype:*, to:->{*fromtype}, args...:*)
+    def _new(args):
+        obj = type(args[0])
+        inst = obj(*args[2:])
+        this().set_var(args[1], inst)
+    atleast(_new, args, 2)
+
+def bake(args):  # BAKE value, fullvar  (value:*, fullvar:F>>{*value})
+    def _bake(args):
+        ns, var = get_namespace(args[1])
+        if ns == 'THIS':
+            this().set_var(var, args[0])
+        elif ns in this().subspaces:
+            append_subspace(ns)
+            this().set_var(var, args[0])
+            pop_subspace()
+        elif ns in namespaces:
+            namespaces[ns].set_var(var, args[0])
+        else:
+            invalidNamespaceError(ns)
+    when(_bake, args, 2)
+
+def swap(args):  # SWAP a, b  (a:<->{*}, b:<->{*})
+    def _swap(args):
+        temp = this().get_var(args[0])
+        this().set_var(args[0], this().get_var(args[1]))
+        this().set_var(args[1], temp)
+    when(_swap, args, 2)
+
+def put_into_kl(args):  # KILL var, [ticket]  (var:<-{*}, ticket:->{INT})
+    def _put_into_kl(args):
+        ticket = this().kill_var(args[0])
+        if len(args) == 2:
+            this().set_var(args[1], ticket)
+    between(_put_into_kl, args, 1, 2)
+
+def retrieve_from_kl(args):  # WAKE ticket, var  (ticket:INT, var:->{*})
+    def _retrieve_from_kl(args):
+        if check(args[0], int):
+            this().unkill_var(args[0], args[1])
+        else:
+            typeErr(0)
+    when(_retrieve_from_kl, args, 2)
+
+def set_kl_len(args):  # KSET lenght  (lenght:INT)
+    def _set_kl_len(args):
+        if check(args[0], int):
+            this().kill_list.max_len = args[0]
+        else:
+            typeErr(0)
+    when(_set_kl_len, args, 1)
+
+def get_kl_len(args):  # KGET to  (to:->{INT})
+    def _get_kl_len(args):
+        kl_len = len(this().kill_list._kills)
+        this().set_var(args[0], kl_len)
+    when(_get_kl_len, args, 1)
+
+bind(assign, 'PUT')
+bind(delete, 'DEL')
+bind(new, 'NEW')
+bind(bake, 'BAKE')
+bind(swap, 'SWAP')
+bind(put_into_kl, 'KILL')
+bind(retrieve_from_kl, 'WAKE')
+bind(set_kl_len, 'KSET')
+bind(get_kl_len, 'KGET')
+pyend

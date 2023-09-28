@@ -1,0 +1,62 @@
+name >>_default
+
+pyblock
+def minval(args):  # MIN val_or_iter, vals..., store  (val_or_iter:*|SEQ|PSEQ|PACK|MAP|LOOP, vals...:*, store:->{*})
+    def _minval(args):
+        m = min(*args[:-1])
+        this().set_var(args[-1], m)
+    atleast(_minval, args, 2)
+
+def maxval(args):  # MAX val_or_iter, vals..., store  (val_or_iter:*|SEQ|PSEQ|PACK|MAP|LOOP, vals...:*, store:->{*})
+    def _maxval(args):
+        m = max(*args[:-1])
+        this().set_var(args[-1], m)
+    atleast(_maxval, args, 2)
+
+def anybool(args):  # ANY iter, store  (iter:SEQ|PSEQ|PACK|MAP|LOOP, store:->{BOOL})
+    def _anybool(args):
+        store = any(args[0])
+        this().set_var(args[1], store)
+    when(_anybool, args, 2)
+
+def allbools(args):  # ALL iter, store  (iter:SEQ|PSEQ|PACK|MAP|LOOP, store:->{BOOL})
+    def _allbools(args):
+        store = all(args[0])
+        this().set_var(args[1], store)
+    when(_allbools, args, 2)
+
+def flag(args):  # FLAG var  (var:->{BOOL})
+    def _flag(args):
+        this().set_var(args[0], True)
+    when(_flag, args, 1)
+
+def unflag(args):  # UNFLAG var  (var:->{BOOL})
+    def _unflag(args):
+        this().set_var(args[0], False)
+    when(_unflag, args, 1)
+
+def flip(args):  # FLIP var  (var:<->{BOOL})
+    def _flip(args):
+        if bool(this().get_var(args[0])):
+            this().set_var(args[0], False)
+        else:
+            this().set_var(args[0], True)
+    when(_flip, args, 1)
+
+def ex(args):  # EXIT [excode]  (excode:INT)
+    def _ex(args):
+        if len(args) == 1 and check(args[0], int):
+            sys.exit(args[0])
+        else:
+            sys.exit()
+    between(_ex, args, 0, 1)
+
+bind(minval, 'MIN')
+bind(maxval, 'MAX')
+bind(anybool, 'ANY')
+bind(allbools, 'ALL')
+bind(flag, 'FLAG')
+bind(unflag, 'UNFLAG')
+bind(flip, 'FLIP')
+bind(ex, 'EXIT')
+pyend

@@ -1,0 +1,95 @@
+name >>_default
+
+pyblock
+def eq(args):  # EQ a, b, store  (a:*, b:*, store:->{BOOL})
+    def _eq(args):
+        store = (args[0] == args[1])
+        this().set_var(args[2], store)
+    when(_eq, args, 3)
+
+def ne(args):  # NE a, b, store  (a:*, b:*, store:->{BOOL})
+    def _ne(args):
+        store = (args[0] != args[1])
+        this().set_var(args[2], store)
+    when(_ne, args, 3)
+
+def gt(args):  # GT a, b, store  (a:*, b:*, store:->{BOOL})
+    def _gt(args):
+        store = (args[0] > args[1])
+        this().set_var(args[2], store)
+    when(_gt, args, 3)
+
+def lt(args):  # LT a, b, store  (a:*, b:*, store:->{BOOL})
+    def _lt(args):
+        store = (args[0] < args[1])
+        this().set_var(args[2], store)
+    when(_lt, args, 3)
+
+def ge(args):  # GE a, b, store  (a:*, b:*, store:->{BOOL})
+    def _ge(args):
+        store = (args[0] >= args[1])
+        this().set_var(args[2], store)
+    when(_ge, args, 3)
+
+def le(args):  # LE a, b, store  (a:*, b:*, store:->{BOOL})
+    def _le(args):
+        store = (args[0] <= args[1])
+        this().set_var(args[2], store)
+    when(_le, args, 3)
+
+def and_(args):  # AND a, b, store  (a:*, b:*, store:->{BOOL})
+    def _and(args):
+        store = (args[0] and args[1])
+        this().set_var(args[2], store)
+    when(_and, args, 3)
+
+def or_(args):  # OR a, b, store  (a:*, b:*, store:->{BOOL})
+    def _or(args):
+        store = (args[0] or args[1])
+        this().set_var(args[2], store)
+    when(_or, args, 3)
+
+def not_(args):  # NOT what, store  (what:*, store:->{BOOL})
+    def _not(args):
+        store = (not args[0])
+        this().set_var(args[1], store)
+    when(_not, args, 2)
+
+def is_(args):  # IS a, b, store  (a:*, b:*, store:->{BOOL})
+    def _is(args):
+        store = (args[0] is args[1])
+        this().set_var(args[2], store)
+    when(_is, args, 3)
+
+def isnt(args):  # ISNT a, b, store  (a:*, b:*, store:->{BOOL})
+    def _isnt(args):
+        store = (args[0] is not args[1])
+        this().set_var(args[2], store)
+    when(_isnt, args, 3)
+
+def in_(args):  # IN a, b, store  (a:*, b:*, store:->{BOOL})
+    def _in(args):
+        store = (args[0] in args[1])
+        this().set_var(args[2], store)
+    when(_in, args, 3)
+
+def innt(args):  # INNT a, b, store  (a:*, b:*, store:->{BOOL})
+    def _innt(args):
+        store = (args[0] not in args[1])
+        this().set_var(args[2], store)
+    when(_innt, args, 3)
+
+bind(eq, 'EQ')
+bind(ne, 'NE')
+bind(gt, 'GT')
+bind(lt, 'LT')
+bind(ge, 'GE')
+bind(le, 'LE')
+bind(and_, 'AND')
+bind(or_, 'OR')
+bind(not_, 'NOT')
+bind(is_, 'IS')
+bind(isnt, 'ISNT')
+bind(in_, 'IN')
+bind(innt, 'INNT')
+pyend

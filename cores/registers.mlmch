@@ -1,0 +1,33 @@
+name >>_default
+
+pyblock
+def sign(args):  # SIGN reg  (reg:>>)
+    def _sign(args):
+        if check(args[0], str):
+            new_register(args[0])
+        else:
+            typeErr(0)
+    when(_sign, args, 1)
+
+def poke(args):  # POKE reg, val  (reg:>>, val:*)
+    def _poke(args):
+        set_register(args[0], args[1])
+    when(_poke, args, 2)
+
+def peek(args):  # PEEK reg, store  (reg:>>, store:->{*})
+    def _peek(args):
+        store = get_register(args[0])
+        if current_error != ('Unknown error', 'if you see this, please file a bug report'):
+            this().set_var(args[1], store)
+    when(_peek, args, 2)
+
+def revoke(args):  # REVOKE reg  (reg:>>)
+    def _revoke(args):
+        del_register(args[0])
+    when(_revoke, args, 1)
+
+bind(sign, 'SIGN')
+bind(poke, 'POKE')
+bind(peek, 'PEEK')
+bind(revoke, 'REVOKE')
+pyend

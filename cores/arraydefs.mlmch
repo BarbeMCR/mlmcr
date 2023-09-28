@@ -1,0 +1,63 @@
+name >>_default
+
+pyblock
+def seq(args):  # SEQ var, items...  (var:->{SEQ}, items...:*)
+    def _seq(args):
+        a = list(args[1:])  # In theory, args should already be a list; however, it is best to ensure that a is always a list no matter what
+        this().set_var(args[0], a)
+    atleast(_seq, args, 1)
+
+def pseq(args):  # PSEQ var, items...  (var:->{PSEQ}, items...:*)
+    def _pseq(args):
+        a = PermaSequence(*args[1:])
+        this().set_var(args[0], a)
+    atleast(_pseq, args, 1)
+
+def pack(args):  # PACK var, items...  (var:->{PACK}, items...:*)
+    def _pack(args):
+        a = tuple(args[1:])
+        this().set_var(args[0], a)
+    atleast(_pack, args, 1)
+
+def mlmap(args):  # MAP var  (var:->{MAP})
+    def _mlmap(args):
+        this().set_var(args[0], {})
+    when(_mlmap, args, 1)
+
+def loop(args):  # LOOP [start], stop, [step], var  (start:INT, stop:INT, step:INT, var:->{LOOP})
+    def _loop(args):
+        if len(args) == 2:
+            if check(args[0], int):
+                a = range(args[0])
+                this().set_var(args[1], a)
+            else:
+                typeErr(0)
+        elif len(args) == 3:
+            if check(args[0], int):
+                if check(args[1], int):
+                    a = range(args[0], args[1])
+                    this().set_var(args[2], a)
+                else:
+                    typeErr(1)
+            else:
+                typeErr(0)
+        else:
+            if check(args[0], int):
+                if check(args[1], int):
+                    if check(args[2], int):
+                        a = range(args[0], args[1], args[2])
+                        this().set_var(args[3], a)
+                    else:
+                        typeErr(2)
+                else:
+                    typeErr(1)
+            else:
+                typeErr(0)
+    between(_loop, args, 2, 4)
+
+bind(seq, 'SEQ')
+bind(pseq, 'PSEQ')
+bind(pack, 'PACK')
+bind(mlmap, 'MAP')
+bind(loop, 'LOOP')
+pyend

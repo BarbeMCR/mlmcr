@@ -1,0 +1,18 @@
+name >>_default
+
+pyblock
+def push(args):  # PUSH stuff...  (stuff...:*)
+    for arg in args:
+        print(arg, end='')
+    print()
+
+def pull(args):  # PULL into, [prompt]  (into:->{STR}, prompt:STR)
+    def _pull(args):
+        if len(args) == 2: pulled = input(args[1])
+        else: pulled = input()
+        this().set_var(args[0], pulled)
+    between(_pull, args, 1, 2)
+
+bind(push, 'PUSH')
+bind(pull, 'PULL')
+pyend

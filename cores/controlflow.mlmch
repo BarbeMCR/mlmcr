@@ -1,0 +1,99 @@
+name >>_default
+
+pyblock
+def mlfor(args):  # FOR item, iterable, call, [args..., return]  (item:->{*}, iterable:SEQ|PSEQ|PACK|MAP|LOOP, call:SUBR|FUNC|PROC, args...:^*, return:->{*})
+    def _for(args):
+        if has(args[1], '__iter__'):
+            for item in args[1]:
+                this().set_var(args[0], item)
+                try:
+                    if len(args) == 3:
+                        call(args[2])
+                    else:
+                        a = args.copy()
+                        for i, arg in enumerate(args[3:-1]):
+                            if check(arg, LookBack):
+                                a[i+3] = this().get_var(arg.backref)
+                        r = call(args[2], a[3:-1])
+                        this().set_var(args[-1], r)
+                except Break:
+                    break
+                except Continue:
+                    continue
+        else:
+            cantDo("iterate", "<not an iterable>", type(args[1]))
+    atleast(_for, args, 3)
+
+def mlfori(args):  # FORI index, item, iterable, call, [args..., return]  (index:->{INT}, item:->{*}, iterable:SEQ|PSEQ|PACK|MAP|LOOP, call:SUBR|FUNC|PROC, args...:^*, return:->{*})
+    def _fori(args):
+        if has(args[1], '__iter__'):
+            for index, item in enumerate(args[2]):
+                this().set_var(args[0], index)
+                this().set_var(args[1], item)
+                try:
+                    if len(args) == 4:
+                        call(args[3])
+                    else:
+                        a = args.copy()
+                        for i, arg in enumerate(args[4:-1]):
+                            if check(arg, LookBack):
+                                a[i+4] = this().get_var(arg.backref)
+                        r = call(args[3], a[4:-1])
+                        this().set_var(args[-1], r)
+                except Break:
+                    break
+                except Continue:
+                    continue
+        else:
+            cantDo("iterate", "<not an iterable>", type(args[1]))
+    atleast(_fori, args, 4)
+
+def mlskip(args):  # SKIP  ()
+    def _skip(args):
+        raise Break
+    when(_skip, args, 0)
+
+def mlnext(args):  # NEXT ()
+    def _next(args):
+        raise Continue
+    when(_next, args, 0)
+
+def mlwhile(args):  # ALA condition, call, [args..., return]  (condition:BOOL, call:SUBR|FUNC|PROC, args...:*, return:->{*})
+    def _ala(args):
+        while args[0]:
+            try:
+                if len(args) == 2:
+                    call(args[1])
+                else:
+                    r = call(args[1], args[2:-1])
+                    this().set_var(args[-1], r)
+            except Break:
+                break
+            except Continue:
+                continue
+    atleast(_ala, args, 2)
+
+def mldo(args):  # DALA condition, call, [args..., return]  (condition:BOOL, call:SUBR|FUNC|PROC, args...:*, return:->{*})
+    def _dala(args):
+        while True:
+            try:
+                if len(args) == 2:
+                    call(args[1])
+                else:
+                    r = call(args[1], args[2:-1])
+                    this().set_var(args[-1], r)
+            except Break:
+                break
+            except Continue:
+                continue
+            if not args[0]:
+                break
+    atleast(_dala, args, 2)
+
+bind(mlfor, 'FOR')
+bind(mlfori, 'FORI')
+bind(mlskip, 'SKIP')
+bind(mlnext, 'NEXT')
+bind(mlwhile, 'ALA')
+bind(mldo, 'DALA')
+pyend

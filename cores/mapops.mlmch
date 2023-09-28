@@ -1,0 +1,98 @@
+name >>_default
+
+pyblock
+def mset(args):  # MSET map, key, value  (map:<->{MAP}, key:*, value:*)
+    def _mset(args):
+        m = this().get_var(args[0])
+        if has(m, '__setitem__'):
+            m[args[1]] = args[2]
+            this().set_var(args[0], m)
+        else:
+            cantDo("add items to", m)
+    when(_mset, args, 3)
+
+def mget(args):  # MGET map, key, store  (map:MAP, key:*, store:->{*})
+    def _mget(args):
+        m = this().get_var(args[0])
+        if has(m, '__getitem__'):
+            try:
+                store = m[args[1]]
+                this().set_var(args[2], store)
+            except KeyError:
+                mapKeyError(args[1])
+        else:
+            cantDo("get items from", m)
+    when(_mget, args, 3)
+
+def mpop(args):  # MPOP map, key, [store]  (map:<->{MAP}, key:*, store:->{*})
+    def _mpop(args):
+        m = this().get_var(args[0])
+        if has(m, 'pop'):
+            if len(args) == 2:
+                try:
+                    m.pop(args[1])
+                except KeyError:
+                    mapKeyError(args[1])
+            else:
+                try:
+                    store = m.pop(args[1])
+                    this().set_var(args[2], store)
+                except KeyError:
+                    mapKeyError(args[1])
+            this().set_var(args[0], m)
+        else:
+            cantDo("pop items from", m)
+    between(_mpop, args, 2, 3)
+
+def mpli(args):  # MPLI map, pair  (map:<->{MAP}, pair:->{PACK})
+    def _mpli(args):
+        m = this().get_var(args[0])
+        if has(m, 'popitem'):
+            try:
+                p = m.popitem()
+                this().set_var(args[1], p)
+                this().set_var(args[0], m)
+            except KeyError:
+                mapKeyError("(map is empty)")
+        else:
+            cantDo("pop items from", m)
+    when(_mpli, args, 2)
+
+def grab(args):  # GRAB map, pairs  (map:MAP, pairs:->{PACK})
+    def _grab(args):
+        m = this().get_var(args[0])
+        if has(m, 'items'):
+            p = m.items()
+            this().set_var(args[1], p)
+        else:
+            cantDo("grab items from", m)
+    when(_grab, args, 2)
+
+def keys(args):  # KEYS map, keys  (map:MAP, keys:->{PACK})
+    def _keys(args):
+        m = this().get_var(args[0])
+        if has(m, 'keys'):
+            k = m.keys()
+            this().set_var(args[1], k)
+        else:
+            cantDo("grab keys from", m)
+    when(_keys, args, 2)
+
+def vals(args):  # VALS map, values  (map:MAP, values:->{PACK})
+    def _vals(args):
+        m = this().get_var(args[0])
+        if has(m, 'values'):
+            v = m.values()
+            this().set_var(args[1], v)
+        else:
+            cantDo("grab values from", m)
+    when(_vals, args, 2)
+
+bind(mset, 'MSET')
+bind(mget, 'MGET')
+bind(mpop, 'MPOP')
+bind(mpli, 'MPLI')
+bind(grab, 'GRAB')
+bind(keys, 'KEYS')
+bind(vals, 'VALS')
+pyend

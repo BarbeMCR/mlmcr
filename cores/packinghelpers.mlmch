@@ -1,0 +1,159 @@
+pyblock
+def bind_op(args):  # BIND func, opcode  (func:FUNC, opcode:>>)
+    def _bind_op(args):
+        if check(args[1], str):
+            bind(args[0], args[1])
+        else:
+            typeErr(1)
+    when(_bind_op, args, 2)
+
+def copy_op(args):  # WRAP opcode, into  (opcode:F>>, into:F>>)
+    def _copy_op(args):
+        if check(args[0], str):
+            if check(args[1], str):
+                from_ns, from_op = get_namespace(args[0])
+                from_ns, from_op = from_ns.upper(), from_op.upper()
+                to_ns, to_op = get_namespace(args[1])
+                to_ns, to_op = to_ns.upper(), to_op.upper()
+                if from_ns == 'THIS':
+                    if from_op in this()._ops:
+                        op = this()._ops[from_op]
+                        if to_ns == 'THIS':
+                            this().new_op(to_op, op)
+                        elif to_ns in this().subspaces:
+
+                            this().new_op(to_op, op)
+                            pop_subspace()
+                        elif to_ns in namespaces:
+                            namespaces[to_ns].new_op(to_op, op)
+                        else:
+                            invalidNamespaceError(to_ns)
+                    else:
+                        invalidOpError(from_ns, from_op)
+                elif from_ns in this().subspaces:
+                    append_subspace(from_ns)
+                    if from_op in this()._ops:
+                        op = this()._ops[from_op]
+                        if to_ns == 'THIS':
+                            this(get_parent=True).new_op(to_op, op)
+                        elif to_ns in this(get_parent=True).subspaces:
+                            _sub = this().current_subspace
+                            pop_subspace()
+                            append_subspace(to_ns)
+                            this().new_op(to_op, op)
+                            pop_subspace()
+                            append_subspace(_sub)
+                        elif to_ns in namespaces:
+                            namespaces[to_ns].new_op(to_op, op)
+                        else:
+                            invalidNamespaceError(to_ns)
+                        pop_subspace()
+                    else:
+                        invalidOpError(from_ns, from_op)
+                        pop_subspace()
+                elif from_ns in namespaces:
+                    if from_op in this(namespaces[from_ns])._ops:
+                        op = namespaces[from_ns]._ops[from_op]
+                        if to_ns == 'THIS':
+                            this().new_op(to_op, op)
+                        elif to_ns in this().subspaces:
+                            append_subspace(to_ns)
+                            this().new_op(to_op, op)
+                            pop_subspace()
+                        elif to_ns in namespaces:
+                            namespaces[to_ns].new_op(to_op, op)
+                        else:
+                            invalidNamespaceError(to_ns)
+                    else:
+                        invalidOpError(from_ns, from_op)
+                else:
+                    invalidNamespaceError(from_ns)
+            else:
+                typeErr(1)
+        else:
+            typeErr(0)
+    when(_copy_op, args, 2)
+
+def name(args):  # NAME name  (name:>>)
+    def _name(args):
+        if check(args[0], str):
+            if current_namespace != '_DEFAULT':
+                rename_namespace(current_namespace, args[0].upper())
+            else:
+                cantUseOpHere()
+        else:
+            typeErr(0)
+    when(_name, args, 1)
+
+def use_mlmch(args):  # USE path  (path:>>)
+    def _use_mlmch(args):
+        if check(args[0], str):
+            import_mlmch(args[0])
+        else:
+            typeErr(0)
+    when(_use_mlmch, args, 1)
+
+def nothing(args):  # PASS  ()
+    def _nothing(args):
+        pass
+    when(_nothing, args, 0)
+
+def make_ns(args):  # MAKE ns, [rule]  (ns:>>, rule:>>)
+    def _make_ns(args):
+        if check(args[0], str):
+            if len(args) == 2:
+                if check(args[1], str):
+                    new_namespace(args[0], current_namespace, args[1])
+                else:
+                    typeErr(1)
+            else:
+                new_namespace(args[0], current_namespace)
+        else:
+            typeErr(0)
+    between(_make_ns, args, 1, 2)
+
+def ren_ns(args):  # REN from, to  (from:>>, to:>>)
+    def _ren_ns(args):
+        if check(args[0], str):
+            if check(args[1], str):
+                rename_namespace(args[0], args[1])
+            else:
+                typeErr(1)
+        else:
+            typeErr(0)
+    when(_ren_ns, args, 2)
+
+def discard_ns(args):  # DUMP ns  (ns:>>)
+    def _discard_ns(args):
+        if check(args[0], str):
+            delete_namespace(args[0])
+        else:
+            typeErr(0)
+    when(_discard_ns, args, 1)
+
+def clone_ns(args):  # CLONE ns, to  (ns:>>, to:>>)
+    def _clone_ns(args):
+        if check(args[0], str):
+            if check(args[1], str):
+                if args[0] in this().subspaces:
+                    new_namespace(args[1], args[1], this().subspaces[args[0]]._pref)
+                elif args[0] in namespaces:
+                    new_namespace(args[1], args[1], namespaces[args[0]]._pref)
+                else:
+                    invalidNamespaceError(args[0])
+            else:
+                typeErr(1)
+        else:
+            typeErr(0)
+
+bind(bind_op, 'BIND')
+bind(copy_op, 'WRAP')
+bind(name, 'NAME')
+bind(use_mlmch, 'USE')
+bind(nothing, 'PASS')
+bind(make_ns, 'MAKE')
+bind(ren_ns, 'REN')
+bind(discard_ns, 'DUMP')
+pyend
+
+this.name >>_default

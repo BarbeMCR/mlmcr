@@ -1,0 +1,164 @@
+name >>_default
+
+pyblock
+def fn(args):  # FUNC fn, argdefs...  (fn:->{FUNC}, argdefs...:>)
+    def _fn(args):
+        catchalls = sum(isinstance(a, CatchAll) for a in args[1:])
+        if catchalls>1 or (catchalls==1 and not isinstance(args[-1], CatchAll)):
+            invalidCatchalls()
+        else:
+            f = Function(args[1:])
+            this().set_var(args[0], f)
+            define(f)
+    atleast(_fn, args, 1)
+
+def end(args):  # END  ()
+    def _end(args):
+        if stack and check(stack[-1], Function):
+            raise Return(0, None)
+        else:
+            cantUseOpHere()
+    when(_end, args, 0)
+
+def mlcall(args):  # CALL fn, args..., return  (fn:FUNC|PROC, args...:*, return:->{*})
+    def _call(args):
+        if has(args[0], 'argdefs') and has(args[0], 'has_catchall'):
+            r = call(args[0], args[1:-1])
+            this().set_var(args[-1], r)
+        else:
+            cantDo("call", "<not a callable>")
+    atleast(_call, args, 2)
+
+def give(args):  # GIVE values...  (values...:*)
+    if stack and check(stack[-1], Callable):
+        if len(args) == 0:
+            raise Return(0, None)
+        elif len(args) == 1:
+            raise Return(0, args[0])
+        else:
+            raise Return(0, tuple(args))
+    else:
+        cantUseOpHere()
+    # Turns out we can happily ignore all wrappers because GIVE accepts any number of arguments
+
+def hand(args):  # HAND depth, values...  (depth:INT, values...:*)
+    def _hand(args):
+        if stack and (check(stack[-1], Callable)) or (check(stack[-1], Definable) and [check(f, Callable) for f in stack[:-1]]):
+            if check(args[0], int):
+                if len(args) == 1:
+                    raise Return(args[0], None)
+                elif len(args) == 2:
+                    raise Return(args[0], args[1])
+                else:
+                    raise Return(args[0], tuple(args[1:]))
+            else:
+                typeErr(0)
+        else:
+            cantUseOpHere()
+    atleast(_hand, args, 1)
+
+def take(args):  # TAKE space, spaces...  (space:>>, spaces...:>>)
+    def _take(args):
+        if stack and check(stack[-1], Callable):
+            parent = this(get_parent=True)
+            for i, space in enumerate(args):
+                if check(space, str):
+                    if space in parent.subspaces:
+                        this().add_subspace(parent.subspaces[space])
+                    elif space in namespaces:
+                        this().add_subspace(namespaces[space])
+                    else:
+                        invalidNamespaceError(space)
+                else:
+                    typeErr(i)
+        else:
+            cantUseOpHere()
+    atleast(_take, args, 1)
+
+def sync(args):  # SYNC space, spaces...  (space:>>, spaces...:>>)
+    def _sync(args):
+        if stack and check(stack[-1], Callable):
+            parent = this(get_parent=True)
+            for i, space in enumerate(args):
+                if check(space, str):
+                    if space in this().subspaces:
+                        if this()._name in namespaces:
+                            namespaces[space] = this().subspaces[space]
+                        else:
+                            parent.add_subspace(this().subspaces[space])
+                    else:
+                        invalidNamespaceError(space)
+                else:
+                    typeErr(i)
+        else:
+            cantUseOpHere()
+    atleast(_sync, args, 1)
+
+def s(args):  # SUBR s  (s:->{SUBR})
+    def _s(args):
+        f = Subroutine()
+        this().set_var(args[0], f)
+        define(f)
+    when(_s, args, 1)
+
+def rts(args):  # RTS  ()
+    def _rts(args):
+        if stack and check(stack[-1], Subroutine):
+            pass
+        else:
+            cantUseOpHere()
+    when(_rts, args, 0)
+
+def jump(args):  # JUMP s  (s:SUBR|FUNC|PROC)
+    def _jump(args):
+        try:
+            call(args[0])
+        except TypeError:
+            cantDo("jump to", "<not a jumpable>")
+    when(_jump, args, 1)
+
+def do(args):  # DO proc, argdefs..., :body  (proc:->{PROC}, argdefs...:>, :body>>>)
+    def _do(args):
+        catchalls = sum(isinstance(a, CatchAll) for a in args[1:-1])
+        if catchalls>1 or (catchalls==1 and not isinstance(args[-2], CatchAll)):
+            invalidCatchalls()
+        else:
+            l = Lambda(args[1:-1])
+            l.add_instruction(args[-1])
+            this().set_var(args[0], l)
+    atleast(_do, args, 2)
+
+def snag(args):  # SNAG proc, values...  (proc:<->{PROC}, values...:&*)
+    def _snag(args):
+        l = this().get_var(args[0])
+        if check(l, Lambda):
+            l.add_instruction(f"GIVE {', '.join(args[1:])}")
+            this().set_var(args[0], l)
+        else:
+            cantDo("snag values from", "<not a lambda>")
+    atleast(_snag, args, 1)
+
+def cook(args):  # COOK proc, value, fullvar  (proc:<->{PROC}, value:&*, fullvar:F>>{*value})
+    def _cook(args):
+        l = this().get_var(args[0])
+        if check(l, Lambda):
+            l.add_instruction(f"BAKE {args[1].upper()}, >>{args[2].upper()}")
+            this().set_var(args[0], l)
+        else:
+            cantDo("remotely bake variables from", "<not a lambda>")
+    when(_cook, args, 3)
+
+bind(fn, 'FUNC')
+bind(end, 'END')
+bind(mlcall, 'CALL')
+bind(give, 'GIVE')
+bind(hand, 'HAND')
+bind(take, 'TAKE')
+bind(sync, 'SYNC')
+bind(s, 'SUBR')
+bind(rts, 'RTS')
+bind(jump, 'JUMP')
+bind(do, 'DO')
+bind(snag, 'SNAG')
+bind(cook, 'COOK')
+pyend

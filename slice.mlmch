@@ -1,0 +1,62 @@
+pyblock
+def from_(args):  # SLICE.FROM from, start, store  (from:SEQ|PSEQ|PACK, start:INT, store:->{*from})
+    def _from(args):
+        if has(args[0], '__getitem__'):
+            s = args[0][args[1]:]
+            this().set_var(args[2], s)
+        else:
+            cantDo("get slices from", args[0])
+    when(_from, args, 3)
+
+def to(args):  # SLICE.TO from, stop, store  (from:SEQ|PSEQ|PACK, stop:INT, store:->{*from})
+    def _to(args):
+        if has(args[0], '__getitem__'):
+            s = args[0][:args[1]]
+            this().set_var(args[2], s)
+        else:
+            cantDo("get slices from", args[0])
+    when(_to, args, 3)
+
+def step(args):  # SLICE.STEP from, step, store  (from:SEQ|PSEQ|PACK, step:INT, store:->{*from})
+    def _step(args):
+        if has(args[0], '__getitem__'):
+            s = args[0][::args[1]]
+            this().set_var(args[2], s)
+        else:
+            cantDo("get slices from", args[0])
+    when(_step, args, 3)
+
+def from_to(args):  # SLICE.FROMTO from, start, stop, store  (from:SEQ|PSEQ|PACK, start:INT, stop:INT, store:->{*from})
+    def _from_to(args):
+        if has(args[0], '__getitem__'):
+            s = args[0][args[1]:args[2]]
+            this().set_var(args[3], s)
+        else:
+            cantDo("get slices from", args[0])
+    when(_from_to, args, 4)
+
+def from_step(args):  # SLICE.FROMSTEP from, start, step, store  (from:SEQ|PSEQ|PACK, start:INT, step:INT, store:->{*from})
+    def _from_step(args):
+        if has(args[0], '__getitem__'):
+            s = args[0][args[1]::args[2]]
+            this().set_var(args[3], s)
+        else:
+            cantDo("get slices from", args[0])
+    when(_from_step, args, 4)
+
+def to_step(args):  # SLICE.TOSTEP from, stop, step, store  (from:SEQ|PSEQ|PACK, stop:INT, step:INT, store:->{*from})
+    def _to_step(args):
+        if has(args[0], '__getitem__'):
+            s = args[0][:args[1]:args[2]]
+            this().set_var(args[3], s)
+        else:
+            cantDo("get slices from", args[0])
+    when(_to_step, args, 4)
+
+bind(from_, 'FROM')
+bind(to, 'TO')
+bind(step, 'STEP')
+bind(from_to, 'FROMTO')
+bind(from_step, 'FROMSTEP')
+bind(to_step, 'TOSTEP')
+pyend
