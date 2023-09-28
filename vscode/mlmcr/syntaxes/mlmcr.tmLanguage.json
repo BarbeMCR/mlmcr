@@ -1,0 +1,168 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "mlmcr",
+	"patterns": [
+		{"include": "#embedded"},
+		{"include": "#constant"},
+		{"include": "#comment"},
+		{"include": "#escapes"},
+		{"include": "#entity"},
+		{"include": "#support"},
+		{"include": "#keyword"},
+		{"include": "#variable"},
+		{"include": "#parameter"},
+		{"include": "#op"},
+		{"include": "#string"},
+		{"include": "#langvars"}
+	],
+	"repository": {
+		"embedded": {
+			"begin": "(?i)^\\s*?pyblock",
+			"end": "(?i)^\\s*?pyend",
+			"name": "meta.embedded.python.mlmcr",
+			"patterns": [{
+				"include": "source.python"
+			}]
+		},
+		"comment": {
+			"patterns": [{
+				"name": "comment.line.mlmcr",
+				"match": ";;.*"
+			}]
+		},
+		"constant": {
+			"patterns": [
+				{
+					"name": "constant.numeric.mlmcr",
+					"match": "(?<!#)(##?)[0-9.]+"
+				},
+				{
+					"name": "constant.language.mlmcr",
+					"match": "(?i)(![^\\s,;]+)|(<>[^\\s,;]*\\.?[^\\s,;]+)|((\\b|:)(null|pass|int|flpt|str|bool|loop)\\b)"
+				}
+			]
+		},
+		"escapes": {
+			"patterns": [
+				{
+					"name": "constant.character.escape.mlmcr",
+					"match": "(\\/,\\/)|(\\/;;\\/)"
+				}
+			]
+		},
+		"entity": {
+			"patterns": [
+				{
+					"name": "entity.name.function.mlmcr",
+					"match": "(?i)(?<=(func|subr|do)\\s*?)((-\\s*?>\\s*?)(\\$|@))\\s*?([\\da-f]\\s*?)+"
+				},
+				{
+					"name": "entity.name.class.mlmcr",
+					"match": "(?i)(?<=cls\\s*?)((-\\s*?>\\s*?)(\\$|@))\\s*?([\\da-f]\\s*?)+"
+				},
+				{
+					"name": "entity.other.inherited-class.mlmcr",
+					"match": "(?i)(?<=(?<=cls\\s*?)(-\\s*?>\\s*?(\\$|@))\\s*?([\\da-f]\\s*?)+\\s*?,\\s*?)(\\$|@)\\s*?([\\da-f]\\s*?)+"
+				}
+			]
+		},
+		"keyword": {
+			"patterns": [
+				{
+					"name": "keyword.control.mlmcr",
+					"match": "(?i)(\\b|:)((el)?if|else|fori?|d?ala|loop|give|hand|take|sync|jump|call|try|when|ace|then|stop)\\b"
+				},
+				{
+					"name": "keyword.operator.logical.mlmcr",
+					"match": "(?i)(\\b|:)(eq|ne|gt|lt|ge|le|and|or|not|is|in)\\b"
+				},
+				{
+					"name": "keyword.operator.arithmetic.mlmcr",
+					"match": "(?i)(\\b|:)(add|(sub)(?!r)|mul|f?div|mod|pow|abs)\\b"
+				},
+				{
+					"name": "keyword.operator.assignment.mlmcr",
+					"match": "(?i)(\\b|:)(put|inc|dec|del|bake|new|kill|wake)\\b"
+				}
+			]
+		},
+		"op": {
+			"name": "keyword.other.mlmcr",
+			"match": "(?i)(\\b|:)(\\w+\\.)?\\w+",
+			"captures": {
+				"0": {
+					"patterns": [{
+						"include": "#langvars"
+					}]
+				}
+			}
+		},
+		"string": {
+			"name": "string.mlmcr",
+			"match": "(&([^,;]|(?<=\\/)(,|;;)(?=\\/))*)|(\\s*?>>[^,;]+)",
+			"captures": {
+				"0": {
+					"patterns": [{
+						"include": "#escapes"
+					}]
+				}
+			}
+		},
+		"support": {
+			"patterns": [
+				{
+					"name": "support.function.magic.mlmcr",
+					"match": "(?i)(\\b|:)meta\\b"
+				},
+				{
+					"name": "support.function.mlmcr",
+					"match": "(?i)(\\b|:)(push|pull|make|bind|name|wrap|ren|clone|use)\\b"
+				}
+			]
+		},
+		"variable": {
+			"patterns": [
+				{
+					"name": "variable.name.mlmcr",
+					"match": "(?i)(((\\s*?-\\s*?>\\s*?)|(\\s*?<\\s*?-\\s*?)|(\\s*?<\\s*?-\\s*?>\\s*?))((_?\\$)|@))\\s*?([\\da-f]\\s*?)+"
+				},
+				{
+					"name": "meta.attribute.mlmcr",
+					"match": "(?i)(_\\$)\\s*?([\\da-f]\\s*?)+"
+				}
+			]
+		},
+		"parameter": {
+			"name": "variable.parameter.mlmcr",
+			"match": "(?i)((\\w+\\.)?((\\*|\\?|\\^|>)?\\s*?)((_?\\$)|@))\\s*?([\\da-f]\\s*?)+",
+			"captures": {
+				"0": {
+					"patterns": [{
+						"include": "#langvars"
+					}]
+				}
+			}
+		},
+		"langvars": {
+			"patterns": [
+				{
+					"name": "variable.language.this.mlmcr",
+					"match": "(?i)(\\b|:)this\\b"
+				},
+				{
+					"name": "variable.language.self.mlmcr",
+					"match": "(?i)(\\b|:)self\\b"
+				},
+				{
+					"name": "variable.language.super.mlmcr",
+					"match": "(?i)(\\b|:)super\\b"
+				},
+				{
+					"name": "variable.language.any.mlmcr",
+					"match": "(?<=\\s)\\*(?=\\s)"
+				}
+			]
+		}
+	},
+	"scopeName": "source.mlmcr"
+}

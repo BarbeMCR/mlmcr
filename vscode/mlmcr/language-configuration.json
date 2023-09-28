@@ -1,0 +1,30 @@
+{
+    "comments": {
+        "lineComment": ";;"
+    },
+    "brackets": [
+        ["func", "end"],
+        ["FUNC", "END"],
+        ["subr", "rts"],
+        ["SUBR", "RTS"],
+        ["cls", "ecls"],
+        ["CLS", "ECLS"]
+    ],
+    "autoClosingPairs": [
+        ["(", ")"],
+        ["[", "]"],
+        ["{", "}"],
+        ["\"", "\""],
+        ["/,", "/"],
+        ["/;;", "/"],
+        ["func", "end"],
+        ["FUNC", "END"],
+        ["subr", "rts"],
+        ["SUBR", "RTS"],
+        ["cls", "ecls"],
+        ["CLS", "ECLS"],
+        ["pyblock", "pyend"],
+        ["PYBLOCK", "PYEND"]
+    ],
+    "surroundingPairs": []
+}

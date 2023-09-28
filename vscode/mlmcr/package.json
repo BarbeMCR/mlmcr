@@ -1,0 +1,28 @@
+{
+  "name": "mlmcr",
+  "displayName": "mlmcr",
+  "description": "Provides syntax highlighting support for mlmcr",
+  "version": "3.0.0",
+  "engines": {
+    "vscode": "^1.43.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "mlmcr",
+      "aliases": ["mlmcr", "mlmcr"],
+      "extensions": [".mlmcr",".mlmch"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "mlmcr",
+      "embeddedLanguages": {
+        "meta.embedded.python.mlmcr": "python"
+      },
+      "scopeName": "source.mlmcr",
+      "path": "./syntaxes/mlmcr.tmLanguage.json"
+    }]
+  }
+}
