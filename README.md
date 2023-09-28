@@ -71,6 +71,13 @@ To freeze mlmcr, download and extract the source code (using only basic librarie
 To package extra Python modules (standard or not), type `--hiddenimport <library>` before `mlmcr.py`.
 Then, copy the entirety of the `cores` folder and all `.mlmch` files that come in the root directory into the folder where your frozen copy of the mlmcr interpreter was built.
 
+## Installing the VS Code extension
+
+1. Download and extract the extension (from Releases or from the `vscode` folder in the source)
+2. Copy the `mlmcr` folder inside to your VS Code extensions folder (for me it is `%userprofile%\.vscode\extensions`)
+3. Reload VS Code if it is already running
+4. Enjoy!
+
 ## License
 
-mlmcr is licensed under the MIT license.
+mlmcr and the mlmcr Visual Studio Code extension are licensed under the MIT license.
