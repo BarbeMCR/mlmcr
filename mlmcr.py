@@ -911,8 +911,6 @@ def run(source: list) -> None | Any:
                             cantUseAdvancedControlFlow()
                         except Continue:
                             cantUseAdvancedControlFlow()
-                        except Return as e:
-                            stackError(e.depth)
             else:
                 defining.add_instruction(line.lstrip())
         else:
@@ -954,6 +952,8 @@ def run_file(path: str) -> None:
                 recursionError()
             except MemoryError:
                 memoryError()
+            except Return as e:
+                stackError(e.depth)
     else:
         print(f"Interpreter error: '{path}' does not exist or is not a file!")
         sys.exit(66)  # EX_NOINPUT
